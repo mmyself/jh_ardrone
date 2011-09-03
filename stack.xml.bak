@@ -1,0 +1,18 @@
+<stack>
+  <description brief="jh_ardrone">jh_ardrone</description>
+  <author>Maintained by Jan</author>
+  <license>BSD</license>  
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/jh_ardrone</url>
+  <depend stack="brown_remotelab" /> <!-- rosbridge -->
+  <depend stack="common_msgs" /> <!-- nav_msgs, geometry_msgs, sensor_msgs -->
+  <depend stack="geometry" /> <!-- tf -->
+  <depend stack="image_common" /> <!-- image_transport -->
+  <depend stack="joystick_drivers" /> <!-- joy, spacenav -->
+  <depend stack="ros" /> <!-- roslib -->
+  <depend stack="ros_comm" /> <!-- std_msgs, rospy, roscpp -->
+  <depend stack="starmac_common" /> <!-- starmac_roslib -->
+  <depend stack="starmac_flyer" /> <!-- flyer_controller -->
+  <depend stack="vision_opencv" /> <!-- opencv2, cv_bridge -->
+
+</stack>

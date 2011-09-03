@@ -1,0 +1,87 @@
+<launch>
+    <arg name="machine" default="local"/>
+    <arg name="model" default="simple_nonlinear"/>
+    <arg name="flyer_name" default="simflyer1"/>
+    <arg name="odom_topic" default="estimator/output"/>
+    
+    
+    
+    
+    <arg name="flyer_machine" value="local"/>
+    
+    <!-- MACHINE DEFINITIONS -->
+    <group>
+        <include file="$(find flyer_common)/launch/machines/local.xml"/>
+        <include file="$(find flyer_common)/launch/machines/sim_flyers.xml"/>
+    </group>
+    
+    
+    <group ns="$(arg flyer_name)">
+    
+        <machine name="local" address="localhost"/>
+    
+        <remap from="odom" to="$(arg odom_topic)"/>
+        
+        
+        
+        
+        
+       <!-- STATIC TRANSFORMS -->
+        <node pkg="flyer_common" type="static_transforms.py" name="static_transforms" machine="$(arg flyer_machine)">
+            <param name="mode" value="both" type="str"/>
+            <param name="flyer" value="$(arg flyer_name)" type="str"/>
+            <param name="period" value="500"/>
+        </node>
+       
+       
+        <!-- SIMULATION -->
+	<!--<include file="$(find flyer_common)/launch/sim/sim.xml">
+    	    <arg name="model" value="$(arg model)"/>
+	</include>-->
+
+
+
+
+
+	<!-- Start the ARDrone driver-->
+	<node name="ardrone" pkg="ardrone_brown" type="ardrone_driver" output="screen">
+	    <param name="model" value="$(arg model)"/>
+	</node> 
+
+        <!-- translate the messages from the dronedriver to odometry -->
+	<node pkg="jh_fly" type="ar_adapter.py" name="ar_adapter" output="screen">
+	    <param name="model" value="$(arg model)"/>
+	</node>
+
+        <!-- VISUALIZATION  with Rviz-->
+        <!-- <include file="$(find flyer_common)/launch/systems/visualization.xml">
+        </include> -->
+        
+        
+        
+        
+        
+        <!-- Create driving control with keyboard commandline-->
+        <node name="drone_teleop" pkg="drone_teleop" type="drone_teleop.py" output="screen" />
+        
+        <!-- Start the 3d Mouse for driving control -->
+        <!-- <node name="teleop_3d" pkg="ardrone_3d_teleop" type="ardrone_3d_teleop" /> -->
+        
+        
+    </group>
+    
+    <!-- Start the rosjs interface and mjpeg server -->
+    <!-- the url for html is http://localhost/ardrone_web/ -->
+    <node name="rosbridge" pkg="rosbridge" type="rosbridge.py" />
+    <node name="mjpeg_server" pkg="mjpeg_server" type="mjpeg_server" />
+    
+    <!-- AR tag recognition -->
+    <include file="$(find jh_fly)/launch/arlocalizer.xml">
+    </include>
+        
+        
+        
+        
+        
+        
+</launch>

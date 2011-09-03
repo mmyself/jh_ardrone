@@ -1,0 +1,29 @@
+<package>
+  <description brief="jh_fly">
+
+     jh_fly
+
+  </description>
+  <author>Jan Heuer</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/jh_fly</url>
+  <depend package="roslib"/>
+  <depend package="roscpp"/>
+  <depend package="std_msgs"/>
+
+  <depend package="rospy"/>
+  <depend package="nav_msgs"/>
+  <depend package="flyer_controller"/>
+  <depend package="starmac_roslib"/>
+  <depend package="tf"/>
+  <depend package="jh_ardrone_brown"/>
+  
+  
+  <rosdep name="python-numpy"/>
+  <rosdep name="python-scipy"/>
+
+
+</package>
+
+
