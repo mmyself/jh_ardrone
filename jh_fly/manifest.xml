@@ -17,7 +17,7 @@
   <depend package="flyer_controller"/>
   <depend package="starmac_roslib"/>
   <depend package="tf"/>
-  <depend package="jh_ardrone_brown"/>
+  <depend package="ardrone_brown"/>
   
   
   <rosdep name="python-numpy"/>
