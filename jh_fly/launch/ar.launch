@@ -72,8 +72,8 @@
     
     <!-- Start the rosjs interface and mjpeg server -->
     <!-- the url for html is http://localhost/ardrone_web/ -->
-    <node name="rosbridge" pkg="rosbridge" type="rosbridge.py" />
-    <node name="mjpeg_server" pkg="mjpeg_server" type="mjpeg_server" />
+    <!--<node name="rosbridge" pkg="rosbridge" type="rosbridge.py" /-->
+    <!--<node name="mjpeg_server" pkg="mjpeg_server" type="mjpeg_server" />-->
     
     <!-- AR tag recognition -->
     <include file="$(find jh_fly)/launch/arlocalizer.xml">
