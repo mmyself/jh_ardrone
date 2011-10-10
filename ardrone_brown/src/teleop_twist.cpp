@@ -54,8 +54,15 @@ C_RESULT update_teleop(void)
 	float up_down = cmd_vel.linear.z;
 	float turn = cmd_vel.angular.z;
 
-	//printf("LR:%f FB:%f UD:%f TURN:%f\n", left_right, front_back, up_down, turn);
-	ardrone_at_set_progress_cmd(1, left_right, front_back, up_down, turn);
+	///printf("LR:%f FB:%f UD:%f TURN:%f\n", left_right, front_back, up_down, turn);
+	if(left_right == 0 && front_back == 0 && up_down == 0 && turn == 0)
+    {
+        printf("Drone im Hover Mode\n");
+        ardrone_at_set_progress_cmd(0, left_right, front_back, up_down, turn);
+    }else{
+        ardrone_at_set_progress_cmd(1, left_right, front_back, up_down, turn);
+    }
+
 	return C_OK;
 }
 

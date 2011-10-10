@@ -65,7 +65,7 @@
         <node name="drone_teleop" pkg="drone_teleop" type="drone_teleop.py" output="screen" />
         
         <!-- Start the 3d Mouse for driving control -->
-        <!-- <node name="teleop_3d" pkg="ardrone_3d_teleop" type="ardrone_3d_teleop" /> -->
+        <!--<node name="teleop_3d" pkg="ardrone_3d_teleop" type="ardrone_3d_teleop" />-->
         
         
     </group>
