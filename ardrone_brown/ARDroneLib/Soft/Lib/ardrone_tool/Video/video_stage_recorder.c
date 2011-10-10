@@ -22,6 +22,8 @@
 #include <config.h>
 #include <ardrone_tool/Video/video_stage_recorder.h>
 
+//#define USE_FIXED_60FPS
+
 #ifdef USE_VIDEO_YUV
 #define VIDEO_FILE_EXTENSION "yuv"
 #else
@@ -29,7 +31,11 @@
 #endif
 
 #ifndef VIDEO_FILE_DEFAULT_PATH
+#ifdef USE_ELINUX
 #define VIDEO_FILE_DEFAULT_PATH "/data/video"
+#else
+#define VIDEO_FILE_DEFAULT_PATH "."
+#endif
 #endif
 
 #if defined (NAVDATA_VISION_INCLUDED) && defined (USE_ELINUX)
@@ -49,19 +55,41 @@ char video_filename[VIDEO_FILENAME_LENGTH];
 C_RESULT
 video_stage_recorder_handle (video_stage_recorder_config_t * cfg, PIPELINE_MSG msg_id, void *callback, void *param)
 {
+   void (*recorder_callback)(video_stage_recorder_config_t*) = callback;
+
 	switch (msg_id)
 	{
-		case PIPELINE_MSG_START:
+		case PIPELINE_MSG_START: //video
 			{
 				if(cfg->startRec==VIDEO_RECORD_STOP)
+				{
 					cfg->startRec=VIDEO_RECORD_HOLD;
+				}
 				else
+				{
 					cfg->startRec=VIDEO_RECORD_STOP;
+				}
 			}
 			break;
+  
+		case PIPELINE_MSG_COMMAND: //picture
+			{
+				if(cfg->startRec==VIDEO_RECORD_STOP)
+				{
+					cfg->startRec=VIDEO_PICTURE_HOLD;
+				}
+				else
+				{
+					cfg->startRec=VIDEO_RECORD_STOP;
+				}
+			}	
 		default:
-			break;
+			{
+				break;
+			}
 	}
+	if (recorder_callback!=NULL) { recorder_callback(cfg); }
+
 	return (VP_SUCCESS);
 }
 
@@ -73,79 +101,149 @@ C_RESULT video_stage_recorder_open(video_stage_recorder_config_t *cfg)
 
 C_RESULT video_stage_recorder_transform(video_stage_recorder_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
-	 time_t temptime;
+#ifndef _WIN32
 
-  vp_os_mutex_lock( &out->lock );
+	time_t temptime;
+	struct timeval tv;
+#ifdef USE_FIXED_60FPS
+	static struct timeval old_tv;
+	static uint8_t* old_pic=NULL;
+	unsigned long delta_us=0;
+	int ratio=0;
+	int i=0;
+#endif
+	vp_os_mutex_lock( &out->lock );
 
-  if( out->status == VP_API_STATUS_INIT )
-  {
-    out->numBuffers   = 1;
-    out->indexBuffer  = 0;
-    out->lineSize     = NULL;
-    //out->buffers      = (int8_t **) vp_os_malloc( sizeof(int8_t *) );
-  }
+	if( out->status == VP_API_STATUS_INIT )
+	{
+		out->numBuffers   = 1;
+		out->indexBuffer  = 0;
+		out->lineSize     = NULL;
+		//out->buffers      = (int8_t **) vp_os_malloc( sizeof(int8_t *) );
+	}
 
-  out->size     = in->size;
-  out->status   = in->status;
-  out->buffers  = in->buffers;
+	out->size     = in->size;
+	out->status   = in->status;
+	out->buffers  = in->buffers;
 
-  if( in->status == VP_API_STATUS_ENDED ) {
-    out->status = in->status;
-  }
-  else if(in->status == VP_API_STATUS_STILL_RUNNING) {
-    out->status = VP_API_STATUS_PROCESSING;
-  }
-  else {
-    out->status = in->status;
-  }
+	if( in->status == VP_API_STATUS_ENDED ) {
+		out->status = in->status;
+	}
+	else if(in->status == VP_API_STATUS_STILL_RUNNING) {
+		out->status = VP_API_STATUS_PROCESSING;
+	}
+	else {
+		out->status = in->status;
+	}
+
+	gettimeofday(&tv,NULL);
+	vp_api_picture_t* picture = (vp_api_picture_t *) in->buffers;
 
 	if(cfg->startRec==VIDEO_RECORD_HOLD)
 	{
-		struct timeval tv;
 		struct tm *atm;
 
-		gettimeofday(&tv,NULL);
 
-		 temptime = (time_t)tv.tv_sec;
-		 atm = localtime(&temptime);  //atm = localtime(&tv.tv_sec);
-
-		sprintf(video_filename, "%s/video_%04d%02d%02d_%02d%02d%02d.%s",
+		temptime = (time_t)tv.tv_sec;
+		atm = localtime(&temptime);  //atm = localtime(&tv.tv_sec);
+		printf("recording video\n");
+		sprintf(cfg->video_filename, "%s/video_%04d%02d%02d_%02d%02d%02d_w%i_h%i.%s",
 				VIDEO_FILE_DEFAULT_PATH,
 				atm->tm_year+1900, atm->tm_mon+1, atm->tm_mday,
-				atm->tm_hour, atm->tm_min, atm->tm_sec, VIDEO_FILE_EXTENSION);
+				atm->tm_hour, atm->tm_min, atm->tm_sec,
+				picture->width,picture->height,
+				VIDEO_FILE_EXTENSION);
+		
+		memcpy(video_filename, cfg->video_filename, sizeof(video_filename));
 
-		cfg->fp = fopen(video_filename, "wb");
-                if (cfg->fp == NULL)
-                   printf ("error open file %s\n", video_filename);
+		cfg->fp = fopen(cfg->video_filename, "wb");
+		if (cfg->fp == NULL)
+			printf ("error open file %s\n", cfg->video_filename);
 		cfg->startRec=VIDEO_RECORD_START;
 	}
 
-  if( cfg->fp != NULL && out->size > 0 && out->status == VP_API_STATUS_PROCESSING && cfg->startRec==VIDEO_RECORD_START)
-  {
-    vp_api_picture_t* picture = (vp_api_picture_t *) in->buffers;
+	if(cfg->startRec==VIDEO_PICTURE_HOLD)
+	{
+		struct tm *atm;
+
+
+		temptime = (time_t)tv.tv_sec;
+		atm = localtime(&temptime);  //atm = localtime(&tv.tv_sec);
+
+		printf("recording picture\n"); 
+		sprintf(cfg->video_filename, "%s/picture_%04d%02d%02d_%02d%02d%02d_w%i_h%i.%s",
+				VIDEO_FILE_DEFAULT_PATH,
+				atm->tm_year+1900, atm->tm_mon+1, atm->tm_mday,
+				atm->tm_hour, atm->tm_min, atm->tm_sec,
+				picture->width,picture->height,
+				VIDEO_FILE_EXTENSION);
+
+		memcpy(video_filename, cfg->video_filename, sizeof(video_filename));
+		cfg->fp = fopen(cfg->video_filename, "wb");
+		if (cfg->fp == NULL)
+			printf ("error open file %s\n", cfg->video_filename);
+		cfg->startRec=VIDEO_PICTURE_START;
+	}
+	if( cfg->fp != NULL && out->size > 0 && out->status == VP_API_STATUS_PROCESSING && (cfg->startRec==VIDEO_RECORD_START||cfg->startRec==VIDEO_PICTURE_START ))
+	{
+
 
 #if defined (NAVDATA_VISION_INCLUDED) && defined (USE_ELINUX)
 		navdata_set_raw_picture(picture_captured++);
 #endif
 
-    fwrite(picture->y_buf, picture->width * picture->height, 1, cfg->fp);
+#ifdef USE_FIXED_60FPS
+		delta_us=(tv.tv_sec*1000000+tv.tv_usec)-(old_tv.tv_sec*1000000+old_tv.tv_usec);
+		ratio=delta_us/16666;
+		old_tv=tv;
+
+		for(i=0; i<ratio && old_pic; i++)
+		{
+			fwrite(old_pic, picture->width * picture->height, 1, cfg->fp);
 #ifdef USE_VIDEO_YUV
-    fwrite(picture->cb_buf, picture->width * picture->height >> 2, 1, cfg->fp);
-    fwrite(picture->cr_buf, picture->width * picture->height >> 2, 1, cfg->fp);
+			fwrite(old_pic+(picture->width * picture->height), picture->width * picture->height >> 1, 1, cfg->fp);
 #endif
-  }
+		}
+
+		if(old_pic==NULL)
+		{
+			old_pic=vp_os_malloc(picture->width * picture->height*3/2);
+		}
+
+		memcpy(old_pic, picture->y_buf, picture->width * picture->height);
+		memcpy(old_pic + picture->width * picture->height, picture->cb_buf, picture->width * picture->height >> 2);
+		memcpy(old_pic + picture->width * picture->height*5/4, picture->cr_buf, picture->width * picture->height >> 2);
+#endif //USE_FIXED_60FPS
+
+		fwrite(picture->y_buf, picture->width * picture->height, 1, cfg->fp);
+#ifdef USE_VIDEO_YUV
+		fwrite(picture->cb_buf, picture->width * picture->height >> 2, 1, cfg->fp);
+		fwrite(picture->cr_buf, picture->width * picture->height >> 2, 1, cfg->fp);
+#endif
+		if(cfg->startRec==VIDEO_PICTURE_START )//if picture, we stop after one picture (	and if video we continue )
+		{
+			cfg->startRec=VIDEO_RECORD_STOP;
+		}
+	}
 	else
 	{
 		if(cfg->startRec==VIDEO_RECORD_STOP && cfg->fp !=NULL)
 		{
+#ifdef USE_FIXED_60FPS
+			if(old_pic)
+			{
+				vp_os_free(old_pic);
+				old_pic=NULL;
+			}
+#endif
 			fclose(cfg->fp);
 			cfg->fp=NULL;
 		}
 	}
 
-  vp_os_mutex_unlock( &out->lock );
-
-  return C_OK;
+	vp_os_mutex_unlock( &out->lock );
+#endif
+	return C_OK;
 }
 
 C_RESULT video_stage_recorder_close(video_stage_recorder_config_t *cfg)

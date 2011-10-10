@@ -42,7 +42,8 @@ vp_os_malloc_no_assert(size_t size);
  */
 void
 vp_os_free(void *ptr);
-
+void
+vp_os_sfree(void **ptr);
 /**
  * Same as realloc, see <stdlib.h>
  */

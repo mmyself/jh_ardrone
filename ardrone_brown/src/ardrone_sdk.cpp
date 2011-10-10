@@ -3,6 +3,7 @@
 #include "video.h"
 
 navdata_demo_t navdata;
+navdata_time_t arnavtime;
 
 extern "C" {
 	C_RESULT ardrone_tool_init_custom(int argc, char **argv)
@@ -20,6 +21,7 @@ extern "C" {
 	C_RESULT navdata_custom_process( const navdata_unpacked_t* const pnd )
 	{
 		navdata = pnd->navdata_demo;
+		arnavtime = pnd->navdata_time;
 		return C_OK;
 	}
 

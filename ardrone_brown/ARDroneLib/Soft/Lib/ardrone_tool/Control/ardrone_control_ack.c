@@ -11,13 +11,16 @@ C_RESULT ardrone_control_ack_run( uint32_t ardrone_state, ardrone_control_ack_ev
     case ACK_COMMAND_MASK_TRUE:
       res = ( ardrone_state & ARDRONE_COMMAND_MASK ) ? C_OK : C_FAIL;
       if( VP_SUCCEEDED(res) )
-        event->ack_state = ACK_COMMAND_MASK_FALSE;
+      {
+    	  ardrone_at_update_control_mode( ACK_CONTROL_MODE, 0);
+          event->ack_state = ACK_COMMAND_MASK_FALSE;
+      }
       break;
 
     case ACK_COMMAND_MASK_FALSE:
       ardrone_at_update_control_mode( ACK_CONTROL_MODE, 0);
 
-      res = ( ardrone_state & ARDRONE_COMMAND_MASK ) == 0 ? C_OK : C_FAIL;
+      res = ( ( ardrone_state & ARDRONE_COMMAND_MASK ) == 0 ) ? C_OK : C_FAIL;
       if( VP_SUCCEEDED(res) )
         event->status = ARDRONE_CONTROL_EVENT_FINISH_SUCCESS;
       break;

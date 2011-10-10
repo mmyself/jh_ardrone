@@ -3,8 +3,12 @@
 
 #include <VLIB/Platform/video_config.h>
 #include <VLIB/Platform/video_utils.h>
+#include <VLIB/video_codec.h>
 
-#include <stdio.h>
+#include <VLIB/Platform/arm9_P6/video_dct_p6.h>
+#include <VLIB/Platform/arm9_P6/video_p264_p6.h>
+
+#include <VP_Os/vp_os_print.h>
 
 static uint32_t num_references = 0;
 
@@ -12,7 +16,18 @@ C_RESULT video_utils_init( video_controller_t* controller )
 {
   if( num_references == 0 )
   {
-    video_dct_p6_init();
+    switch(controller->codec_type)
+    {
+      case UVLC_CODEC :
+        video_dct_p6_init();
+        break;
+      case P264_CODEC :
+        video_p264_p6_init();
+        break;
+      default :
+        PRINT ("%s unknown codec %d\n",__FUNCTION__,controller->codec_type);
+        return C_FAIL;
+    }
   }
 
   num_references ++;
@@ -24,7 +39,18 @@ C_RESULT video_utils_close( video_controller_t* controller )
 {
   if( num_references > 0 )
   {
-	video_dct_p6_close();
+    switch(controller->codec_type)
+    {
+      case UVLC_CODEC :
+        video_dct_p6_close();
+        break;
+      case P264_CODEC :
+        video_p264_p6_close();
+        break;
+      default :
+        PRINT ("%s unknown codec %d\n",__FUNCTION__,controller->codec_type);
+        return C_FAIL;
+    }
     num_references --;
   }
 

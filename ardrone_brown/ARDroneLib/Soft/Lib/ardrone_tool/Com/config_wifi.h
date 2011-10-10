@@ -41,6 +41,11 @@ void wifi_config_socket(vp_com_socket_t* socket, VP_COM_SOCKET_TYPE type, int32_
   #define COM_CONFIG_SOCKET_RAW_CAPTURE(socket, type, opt, serverhost)  wifi_config_socket(socket, type, opt, serverhost)
 #endif // USE_VIDEO_IP
 
+#define COM_AUTH()               wifi_com()
+#define COM_CONFIG_AUTH()        wifi_config()
+#define COM_CONNECTION_AUTH()    wifi_connection()
+#define COM_CONFIG_SOCKET_AUTH(socket, type, opt, serverhost)  wifi_config_socket(socket, type, opt, serverhost)
+
 #define COM_CONTROL()                  wifi_com()
 #define COM_CONFIG_CONTROL()           wifi_config()
 #define COM_CONNECTION_CONTROL()       wifi_connection()

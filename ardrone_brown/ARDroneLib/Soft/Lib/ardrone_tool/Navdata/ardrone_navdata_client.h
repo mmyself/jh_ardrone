@@ -6,6 +6,7 @@
 
 #include <ardrone_api.h>
 #include <ardrone_tool/Control/ardrone_navdata_control.h>
+#include <ardrone_tool/Navdata/ardrone_general_navdata.h>
 #include <config.h>
 
 #define NAVDATA_MAX_RETRIES	5
@@ -15,9 +16,10 @@
 #define BEGIN_NAVDATA_HANDLER_TABLE \
   ardrone_navdata_handler_t ardrone_navdata_handler_table[] = {
 
-#define END_NAVDATA_HANDLER_TABLE																				\
-    { ardrone_navdata_control_init, ardrone_navdata_control_process, ardrone_navdata_control_release, NULL },	\
-    { NULL, NULL, NULL, NULL }																					\
+#define END_NAVDATA_HANDLER_TABLE					\
+  { ardrone_general_navdata_init, ardrone_general_navdata_process, ardrone_general_navdata_release, NULL }, \
+  { ardrone_navdata_control_init, ardrone_navdata_control_process, ardrone_navdata_control_release, NULL }, \
+  { NULL, NULL, NULL, NULL }						\
 };
 
 #define NAVDATA_HANDLER_TABLE_ENTRY( init, process, release, init_data_ptr ) \
@@ -35,7 +37,14 @@ typedef struct _ardrone_navdata_handler_t {
   void*                             data; // Data used during initialization
 } ardrone_navdata_handler_t;
 
-extern ardrone_navdata_handler_t ardrone_navdata_handler_table[];
+typedef enum
+{
+	NAVDATA_BOOTSTRAP = 0,
+	NAVDATA_DEMO,
+	NAVDATA_FULL
+} navdata_mode_t;
+
+extern ardrone_navdata_handler_t ardrone_navdata_handler_table[] WEAK;
 
 uint32_t ardrone_navdata_client_get_num_retries(void);
 C_RESULT ardrone_navdata_client_init(void);

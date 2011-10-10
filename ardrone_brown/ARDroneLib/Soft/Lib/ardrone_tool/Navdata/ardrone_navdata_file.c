@@ -29,7 +29,7 @@ uint32_t num_picture_decoded = 0;
 
 extern float32_t nd_iphone_gaz;
 extern float32_t nd_iphone_yaw;
-extern int32_t nd_iphone_enable;
+extern int32_t nd_iphone_flag;
 extern float32_t nd_iphone_phi;
 extern float32_t nd_iphone_theta;
 
@@ -48,7 +48,7 @@ static void ardrone_navdata_file_print_version( void )
   "Control_state [-]; ARDrone_state [-]; Time [s]; \
     AccX_raw [LSB]; AccY_raw [LSB]; AccZ_raw [LSB]; \
     GyroX_raw [LSB]; GyroY_raw [LSB]; GyroZ_raw [LSB]; GyroX_110_raw [LSB]; GyroY_110_raw [LSB];Battery_Voltage_raw [mV]; \
-    Alim_3V3 [LSB]; vrefEpson [LSB]; vrefIDG [LSB]; us_debut_echo [LSB]; us_fin_echo [LSB]; us_association_echo; us_distance_echo [LSB];\
+    Alim_3V3 [LSB]; vrefEpson [LSB]; vrefIDG [LSB]; flag_echo_ini [LSB]; us_debut_echo [LSB]; us_fin_echo [LSB]; us_association_echo; us_distance_echo [LSB];\
      us_courbe_temps [LSB]; us_courbe_valeur [LSB]; us_courbe_ref [LSB];\
     Accs_temperature [K]; Gyro_temperature [LSB]; AccX_phys_filt [mg]; AccY_phys_filt [mg]; AccZ_phys_filt [mg]; \
     GyroX_phys_filt [deg/s]; GyroY_phys_filt [deg/s]; GyroZ_phys_filt [deg/s];\
@@ -65,6 +65,8 @@ static void ardrone_navdata_file_print_version( void )
     u_pitch_planif [PWM]; u_roll_planif [PWM]; u_yaw_planif [PWM]; u_gaz_planif [PWM];\
     Current_motor1 [mA]; Current_motor2 [mA]; Current_motor3 [mA]; Current_motor4 [mA];\
     Altitude_vision [mm]; Altitude_vz [mm/s]; Altitude_ref_embedded [mm]; Altitude_raw [mm]; \
+    Observer AccZ [m/s2]; Observer altitude US [m]; Estimated Altitude[m]; Estimated Vz [m/s]; Estimated acc bias [m/s2];\
+    Observer state [-]; vb 1; vb 2;	Observer flight state [-];\
     Vision_tx_raw [-]; Vision_ty_raw [-]; Vision_tz_raw [-];   Vision_State [-]; Vision_defined [-];\
     Vision_phi_trim[rad]; Vision_phi_ref_prop[rad]; Vision_theta_trim[rad]; Vision_theta_ref_prop[rad];\
     Vx_body [mm/s]; Vy_body [mm/s]; Vz_body [mm/s];\
@@ -75,37 +77,35 @@ static void ardrone_navdata_file_print_version( void )
 	Demo_detect_tag_index [-]; Demo_camera_type [-]; Demo_drone_camera_rot_m11 [-]; Demo_drone_camera_rot_m12 [-]; Demo_drone_camera_rot_m13 [-];\
     Demo_drone_camera_rot_m21 [-]; Demo_drone_camera_rot_m22 [-]; Demo_drone_camera_rot_m23 [-]; Demo_drone_camera_rot_m31 [-]; Demo_drone_camera_rot_m32 [-];\
     Demo_drone_camera_rot_m33 [-]; Demo_drone_camera_trans_x [-]; Demo_drone_camera_trans_y [-]; Demo_drone_camera_trans_z [-];\
-		nd_iphone_enable [-]; nd_iphone_phi [-]; nd_iphone_theta [-]; nd_iphone_gaz [-]; nd_iphone_yaw [-];");
+	nd_iphone_flag [-]; nd_iphone_phi [-]; nd_iphone_theta [-]; nd_iphone_gaz [-]; nd_iphone_yaw [-];\
+	quant [-]; encoded_frame_size [bytes]; encoded_frame_number [-]; atcmd_ref_seq [-]; atcmd_mean_ref_gap [ms]; atcmd_var_ref_gap [SU]; atcmd_ref_quality[-];");
 
   for(i = 0 ; i < DEFAULT_NB_TRACKERS_WIDTH*DEFAULT_NB_TRACKERS_HEIGHT ; i++)
     fprintf(navdata_file, "Locked_%u; X_%u; Y_%u; ", i, i, i);
-  fprintf(navdata_file, "Nb_detected; ");
-  for(i = 0 ; i < 4 ; i++)
-    fprintf(navdata_file, "Type_%u; Xd_%u; Yd_%u; W_%u; H_%u; D_%u; ", i, i, i, i, i, i);
 
-/*  for(i = 0 ; i < 5 ; i++)
-    fprintf(navdata_file, "OF_DX_%u; OF_DY_%u; ", i, i);
-*/
+  fprintf(navdata_file, "Nb_detected; ");
+
+  for(i = 0 ; i < 4 ; i++)
+    fprintf(navdata_file, "Type_%u; Xd_%u; Yd_%u; W_%u; H_%u; D_%u; O_%u; ", i, i, i, i, i, i, i);
+
   fprintf(navdata_file, "Perf_szo [ms]; Perf_corners [ms]; Perf_compute [ms]; Perf_tracking [ms]; Perf_trans [ms]; Perf_update [ms]; ");
 
 	for(i=0; i<NAVDATA_MAX_CUSTOM_TIME_SAVE; i++)
-    fprintf(navdata_file, "Perf_Custom_%u; ", i);
+		fprintf(navdata_file, "Perf_Custom_%u; ", i);
 
   // tags after "flag_new_picture" will be written on the IHM side
-  fprintf(navdata_file,
-  "Watchdog Control [-]; \
-    flag_new_picture [-];");
+  fprintf(navdata_file, "Watchdog Control [-]; flag_new_picture [-]; Sample time [s]; ");
+
   #ifdef PC_USE_POLARIS
     fprintf( navdata_file,
     "POLARIS_X [mm]; POLARIS_Y [mm]; POLARIS_Z [mm]; \
   POLARIS_QX [deg]; POLARIS_QY [deg]; POLARIS_QZ [deg];\
-  POLARIS_Q0 [deg]; Time s [s]; Time us [us];");
+  POLARIS_Q0 [deg]; Time s [s]; Time us [us]; ");
   #endif
 
   #ifdef USE_TABLE_PILOTAGE
       fprintf( navdata_file, " Table_Pilotage_position [mdeg]; Table_Pilotage_vitesse [deg/s]; ");
   #endif
-
 }
 
 struct tm *navdata_atm = NULL;
@@ -146,6 +146,9 @@ C_RESULT ardrone_navdata_file_process( const navdata_unpacked_t* const pnd )
   char str[50];
   int32_t* locked_ptr;
   screen_point_t* point_ptr;
+  struct timeval time;
+
+  gettimeofday(&time,NULL);
 
   if( navdata_file_private == NULL )
     return C_FAIL;
@@ -193,7 +196,7 @@ C_RESULT ardrone_navdata_file_process( const navdata_unpacked_t* const pnd )
     sprintf( str, "%d.%06d", (int)((pnd->navdata_time.time & TSECMASK) >> TSECDEC), (int)(pnd->navdata_time.time & TUSECMASK) );
     fprintf( navdata_file, ";%s", str );
 
-    fprintf( navdata_file, "; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u",
+    fprintf( navdata_file, "; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u; %04u",
                             (unsigned int) pnd->navdata_raw_measures.raw_accs[ACC_X],
                             (unsigned int) pnd->navdata_raw_measures.raw_accs[ACC_Y],
                             (unsigned int) pnd->navdata_raw_measures.raw_accs[ACC_Z],
@@ -206,6 +209,7 @@ C_RESULT ardrone_navdata_file_process( const navdata_unpacked_t* const pnd )
                             (unsigned int) pnd->navdata_phys_measures.alim3V3,
                             (unsigned int) pnd->navdata_phys_measures.vrefEpson,
                             (unsigned int) pnd->navdata_phys_measures.vrefIDG,
+                            (unsigned int) pnd->navdata_raw_measures.flag_echo_ini,
                             (unsigned int) pnd->navdata_raw_measures.us_debut_echo,
                             (unsigned int) pnd->navdata_raw_measures.us_fin_echo,
                             (unsigned int) pnd->navdata_raw_measures.us_association_echo,
@@ -288,6 +292,17 @@ C_RESULT ardrone_navdata_file_process( const navdata_unpacked_t* const pnd )
                             (int) pnd->navdata_altitude.altitude_ref,
                             (unsigned int) pnd->navdata_altitude.altitude_raw );
 
+   fprintf( navdata_file, "; %f; %f; %f; %f; %f; %04u; %f; %f; %04u",
+                            pnd->navdata_altitude.obs_accZ,
+                            pnd->navdata_altitude.obs_alt,
+                            pnd->navdata_altitude.obs_x.v[0],
+                            pnd->navdata_altitude.obs_x.v[1],
+                            pnd->navdata_altitude.obs_x.v[2],
+                            pnd->navdata_altitude.obs_state,
+														pnd->navdata_altitude.est_vb.v[0],
+                            pnd->navdata_altitude.est_vb.v[1],
+                            pnd->navdata_altitude.est_state );
+
 		vp_os_memset(&str[0], 0, sizeof(str));
     sprintf( str, "%d.%06d", (int)((pnd->navdata_vision.time_capture & TSECMASK) >> TSECDEC), (int)(pnd->navdata_vision.time_capture & TUSECMASK) );
 
@@ -365,11 +380,22 @@ C_RESULT ardrone_navdata_file_process( const navdata_unpacked_t* const pnd )
 											pnd->navdata_demo.drone_camera_trans.z);
 
      fprintf( navdata_file, "; %d; %f; %f; %f; %f",
-                                 nd_iphone_enable,
+											(int)nd_iphone_flag,
 											nd_iphone_phi,
 											nd_iphone_theta,
 											nd_iphone_gaz,
 											nd_iphone_yaw);
+
+	   fprintf( navdata_file, "; %d; %d; %d; %d; %d; %f; %d",
+			   pnd->navdata_video_stream.quant,
+			   pnd->navdata_video_stream.frame_size,
+			   pnd->navdata_video_stream.frame_number,
+			   pnd->navdata_video_stream.atcmd_ref_seq,
+			   pnd->navdata_video_stream.atcmd_mean_ref_gap,
+			   pnd->navdata_video_stream.atcmd_var_ref_gap,
+			   pnd->navdata_video_stream.atcmd_ref_quality);
+
+
 
     locked_ptr  = (int32_t*) &pnd->navdata_trackers_send.locked[0];
     point_ptr   = (screen_point_t*) &pnd->navdata_trackers_send.point[0];
@@ -386,13 +412,14 @@ C_RESULT ardrone_navdata_file_process( const navdata_unpacked_t* const pnd )
     fprintf( navdata_file, "; %u", (unsigned int) pnd->navdata_vision_detect.nb_detected );
     for(i = 0 ; i < 4 ; i++)
     {
-      fprintf( navdata_file, "; %u; %u; %u; %u; %u; %u",
+      fprintf( navdata_file, "; %u; %u; %u; %u; %u; %u; %f",
                             (unsigned int) pnd->navdata_vision_detect.type[i],
                             (unsigned int) pnd->navdata_vision_detect.xc[i],
                             (unsigned int) pnd->navdata_vision_detect.yc[i],
                             (unsigned int) pnd->navdata_vision_detect.width[i],
                             (unsigned int) pnd->navdata_vision_detect.height[i],
-                            (unsigned int) pnd->navdata_vision_detect.dist[i] );
+                            (unsigned int) pnd->navdata_vision_detect.dist[i],
+                            pnd->navdata_vision_detect.orientation_angle[i]);
     }
 
     fprintf( navdata_file, "; %f; %f; %f; %f; %f; %f",
@@ -411,6 +438,9 @@ C_RESULT ardrone_navdata_file_process( const navdata_unpacked_t* const pnd )
     fprintf( navdata_file, "; %d", (int) pnd->navdata_watchdog.watchdog );
 
     fprintf( navdata_file, "; %u", (unsigned int) num_picture_decoded );
+
+    sprintf( str, "%d.%06d", (int)time.tv_sec, (int)time.tv_usec);
+    fprintf( navdata_file, "; %s", str );
 
   return C_OK;
 }

@@ -21,61 +21,74 @@
 C_RESULT
 vp_stages_input_file_stage_open(vp_stages_input_file_config_t *cfg)
 {
-
   cfg->f = fopen(cfg->name, "rb");
+
   if(cfg->f == NULL)
   {
     PRINT("Missing input file\n");
     return (VP_FAILURE);
   }
-
   return (VP_SUCCESS);
 }
-
 
 C_RESULT
 vp_stages_input_file_stage_transform(vp_stages_input_file_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
   vp_os_mutex_lock(&out->lock);
-
-  if(out->status == VP_API_STATUS_INIT)
-    {
-      out->numBuffers = 1;
-      out->size = cfg->buffer_size;
-      out->buffers = (int8_t **) vp_os_malloc (sizeof(int8_t *)+out->size*sizeof(int8_t));
-      out->buffers[0] = (int8_t *)(out->buffers+1);
-      out->indexBuffer = 0;
-      // out->lineSize not used
-      out->status = VP_API_STATUS_PROCESSING;
-    }
+  uint32_t UI32_i=0;
+  char c;
+  uint32_t y_size, c_size;
+  if( out->status == VP_API_STATUS_INIT )
+  {
+    out->numBuffers =  1;
+    out->size = cfg->buffer_size;
+    out->buffers = (int8_t **) vp_os_malloc (sizeof(int8_t *)+out->size*sizeof(int8_t));
+    out->buffers[0] = (int8_t *)(out->buffers+1);
+    out->indexBuffer = 0;
+    // out->lineSize not used
+    out->status = VP_API_STATUS_PROCESSING;
+  }
 
   // work and update status
   if(out->size < (int32_t)cfg->buffer_size || feof(cfg->f))
+  {
+    if (cfg->loop)
     {
-      vp_os_free(out->buffers);
+      rewind(cfg->f);
+    }
+    else
+    {
+      //vp_os_free(out->buffers);
       out->status = VP_API_STATUS_ENDED;
     }
+  }
   else
+  {
+    if(out->status == VP_API_STATUS_PROCESSING)
+      out->size = fread(out->buffers[0], sizeof(int8_t), cfg->buffer_size*sizeof(int8_t), cfg->f);
+
+    if(out->size <= 0)
     {
-      if(out->status == VP_API_STATUS_PROCESSING)
-	out->size = fread(out->buffers[0], sizeof(int8_t), cfg->buffer_size*sizeof(int8_t), cfg->f);
-      // \todo test
+      if (cfg->loop)
+      {
+        rewind(cfg->f);
+        out->size = fread(out->buffers[0], sizeof(int8_t), cfg->buffer_size*sizeof(int8_t), cfg->f);
+      }
+      else
+      {
+        vp_os_free(out->buffers);
+        out->status = VP_API_STATUS_ENDED;
+      }
+    }
 
-      if(out->size <= 0)
-	{
-	  vp_os_free(out->buffers);
-	  out->status = VP_API_STATUS_ENDED;
-	}
-
-      if(ferror(cfg->f))
-	{
-	  PRINT("ferror\n");
-	  out->status = VP_API_STATUS_ERROR;
-	}
+    if(ferror(cfg->f))
+    {
+      PRINT("ferror\n");
+      out->status = VP_API_STATUS_ERROR;
+    }
   }
 
   vp_os_mutex_unlock(&out->lock);
-
   return (VP_SUCCESS);
 }
 
@@ -87,7 +100,6 @@ vp_stages_input_file_stage_close(vp_stages_input_file_config_t *cfg)
   return (VP_SUCCESS);
 }
 
-
 C_RESULT
 vp_stages_output_file_stage_open(vp_stages_output_file_config_t *cfg)
 {
@@ -95,7 +107,6 @@ vp_stages_output_file_stage_open(vp_stages_output_file_config_t *cfg)
   cfg->f = fopen(cfg->name, "wb");
   return (VP_SUCCESS);
 }
-
 
 #define RATIO 1
 
@@ -107,18 +118,15 @@ vp_stages_output_file_stage_transform(vp_stages_output_file_config_t *cfg, vp_ap
   vp_os_mutex_lock(&out->lock);
 
   if(in->status == VP_API_STATUS_PROCESSING && in->size > 0)
-	  fwrite(in->buffers[in->indexBuffer], sizeof(int8_t), in->size*sizeof(int8_t), cfg->f);
+    fwrite(in->buffers[in->indexBuffer], sizeof(int8_t), in->size*sizeof(int8_t), cfg->f);
+
   fflush(cfg->f);
-
   total_size += in->size;
-
   out->status = in->status;
-
   vp_os_mutex_unlock(&out->lock);
 
   return (VP_SUCCESS);
 }
-
 
 C_RESULT
 vp_stages_output_file_stage_close(vp_stages_output_file_config_t *cfg)
@@ -126,4 +134,3 @@ vp_stages_output_file_stage_close(vp_stages_output_file_config_t *cfg)
   fclose(cfg->f);
   return (VP_SUCCESS);
 }
-

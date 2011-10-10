@@ -45,7 +45,9 @@
 
 #ifdef __GNUC__ // The Gnu Compiler Collection
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #ifndef USE_MINGW32
 #define WINAPI

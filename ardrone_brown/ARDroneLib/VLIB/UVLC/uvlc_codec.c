@@ -261,6 +261,7 @@ C_RESULT uvlc_encode_blockline( video_controller_t* controller, const vp_api_pic
   video_macroblock_t* macroblock = NULL;
   video_picture_context_t blockline_ctx;
   video_gob_t*  gobs;
+  static uint32_t mean_Q = 2;
 
   video_stream_t* stream = &controller->in_stream;
 
@@ -276,8 +277,6 @@ C_RESULT uvlc_encode_blockline( video_controller_t* controller, const vp_api_pic
   controller->picture_complete  = picture_complete;
   controller->blockline         = blockline->blockline;
 
-  uvlc_pack_controller( controller );
-
   blockline_ctx.y_src     = blockline->y_buf;
   blockline_ctx.cb_src    = blockline->cb_buf;
   blockline_ctx.cr_src    = blockline->cr_buf;
@@ -288,6 +287,8 @@ C_RESULT uvlc_encode_blockline( video_controller_t* controller, const vp_api_pic
   gobs        = &controller->gobs[controller->blockline];
   gobs->quant = controller->quant;
   macroblock  = &gobs->macroblocks[0];
+
+  uvlc_pack_controller( controller );
 
   in  = controller->blockline_cache;
   out = macroblock->data;
@@ -301,8 +302,12 @@ C_RESULT uvlc_encode_blockline( video_controller_t* controller, const vp_api_pic
     video_blockline_to_macro_blocks(&blockline_ctx, in, MAX_NUM_MACRO_BLOCKS_PER_CALL);
     RTMON_USTOP(VIDEO_VLIB_BLOCKLINE_TO_MB);
 
-    out = video_fdct_compute(in, out, MAX_NUM_MACRO_BLOCKS_PER_CALL);
 
+#ifdef HAS_FDCT_QUANT_COMPUTE
+    out = video_fdct_quant_compute(in, out, MAX_NUM_MACRO_BLOCKS_PER_CALL,gobs->quant);
+#else
+    out = video_fdct_compute(in, out, MAX_NUM_MACRO_BLOCKS_PER_CALL);
+#endif
     if( in == controller->blockline_cache )
       in += DCT_BUFFER_SIZE;
     else
@@ -315,7 +320,13 @@ C_RESULT uvlc_encode_blockline( video_controller_t* controller, const vp_api_pic
   video_blockline_to_macro_blocks(&blockline_ctx, in, num_macro_blocks);
   RTMON_USTOP(VIDEO_VLIB_BLOCKLINE_TO_MB);
 
+  RTMON_USTOP(VIDEO_VLIB_BLOCKLINE_TO_MB);
+
+#ifdef HAS_FDCT_QUANT_COMPUTE
+  video_fdct_quant_compute(in, out, num_macro_blocks,gobs->quant);
+#else
   video_fdct_compute(in, out, num_macro_blocks);
+#endif
   ///<
 
   ///> Do quantification on each macroblock
@@ -327,6 +338,47 @@ C_RESULT uvlc_encode_blockline( video_controller_t* controller, const vp_api_pic
   ///> Packetize Data to output buffer
   RTMON_USTART(VIDEO_VLIB_PACKET);
   uvlc_write_mb_layer( stream, macroblock, controller->mb_blockline );
+
+  ///> Control Stream size
+
+  if (controller->target_size > 0)
+  {
+    if ((controller->blockline+1) == controller->num_blockline)
+    {
+      if ((controller->target_size > stream->used) && mean_Q > 2)
+      {
+    	// last frame was too small increase overall quality (i.e. decrease quant)
+        mean_Q--;
+      }
+      else if ((controller->target_size < stream->used) && mean_Q < 31)
+      {
+    	// last frame was too large decrease overall quality (i.e. increase quant)
+        mean_Q++;
+      }
+	}
+
+    if (stream->used > ((controller->blockline+1)*controller->target_size*1.05/controller->num_blockline))
+    {
+      // stream too large, reduce quality
+      controller->quant = mean_Q + 1;
+    }
+    else if (stream->used < ((controller->blockline+1)*controller->target_size*0.95/controller->num_blockline))
+    {
+      // stream too low, increase quality
+      controller->quant = mean_Q - 1;
+    }
+    else
+      controller->quant = mean_Q;
+
+    // quant saturation, 31 is reserved for old TABLE_QUANTIZATION mode (backward compatibility)
+    // TODO: quant == 1 doesn't work, find why
+    if (controller->quant > 30)
+      controller->quant=30;
+    else if (controller->quant < 2)
+  	    controller->quant=2;
+  }
+  else
+	  controller->quant= DEFAULT_QUANTIZATION;
   RTMON_USTOP(VIDEO_VLIB_PACKET);
   ///<
 

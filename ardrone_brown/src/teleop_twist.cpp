@@ -7,6 +7,58 @@ bool is_flying = false;
 bool needs_reset = false;
 geometry_msgs::Twist cmd_vel;
 
+int cam_state=0; // 0 for forward and 1 for vertical, change to enum later
+
+// ros service callback function for toggling Cam
+bool toggleCamCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response)
+{
+  if (cam_state == 0) // toggle to 1, the vertical camera
+    {
+      cam_state = 1;
+
+#ifdef _USING_SDK_1_7_
+      ARDRONE_TOOL_CONFIGURATION_ADDEVENT (video_channel, &cam_state, NULL);
+#else
+      ardrone_at_set_toy_configuration("video:video_channel","1");
+#endif
+
+      fprintf(stderr, "\nToggling from frontal camera to vertical camera.\n");
+    }
+  else if (cam_state == 1) // toggle to the forward camera
+    {
+      cam_state = 0;
+
+#ifdef _USING_SDK_1_7_
+      ARDRONE_TOOL_CONFIGURATION_ADDEVENT (video_channel, &cam_state, NULL);
+#else
+      ardrone_at_set_toy_configuration("video:video_channel","0");
+#endif
+
+      fprintf(stderr, "\nToggling from vertical camera to frontal camera.\n");      
+    }
+  return true;
+}
+
+
+/*
+// Older rostopic callback function for toggling Cam
+void toggleCamCallback(const std_msgs::Empty &msg)
+{
+  if (cam_state == 0) // toggle to 1, the vertical camera
+    {
+      cam_state = 1;
+      ardrone_at_set_toy_configuration("video:video_channel","1");
+      fprintf(stderr, "\nToggling from frontal camera to vertical camera.\n");
+    }
+  else if (cam_state == 1) // toggle to the forward camera
+    {
+      cam_state = 0;
+      ardrone_at_set_toy_configuration("video:video_channel","0");
+      fprintf(stderr, "\nToggling from vertical camera to frontal camera.\n");      
+    }
+}
+*/
+
 void cmdVelCallback(const geometry_msgs::TwistConstPtr &msg)
 {
 	const float maxHorizontalSpeed = 1; // use 0.1f for testing and 1 for the real thing
@@ -54,15 +106,7 @@ C_RESULT update_teleop(void)
 	float up_down = cmd_vel.linear.z;
 	float turn = cmd_vel.angular.z;
 
-	///printf("LR:%f FB:%f UD:%f TURN:%f\n", left_right, front_back, up_down, turn);
-	if(left_right == 0 && front_back == 0 && up_down == 0 && turn == 0)
-    {
-        printf("Drone im Hover Mode\n");
-        ardrone_at_set_progress_cmd(0, left_right, front_back, up_down, turn);
-    }else{
-        ardrone_at_set_progress_cmd(1, left_right, front_back, up_down, turn);
-    }
-
+	ardrone_at_set_progress_cmd(1, left_right, front_back, up_down, turn);
 	return C_OK;
 }
 

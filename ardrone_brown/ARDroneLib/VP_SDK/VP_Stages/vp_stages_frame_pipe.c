@@ -1,5 +1,9 @@
 #include <VP_Os/vp_os_malloc.h>
 #include <VP_Stages/vp_stages_frame_pipe.h>
+#ifdef USE_ELINUX
+#include "dma_malloc.h"
+#define vp_os_malloc(a) dma_malloc(a)
+#endif
 //#include <VP_Os/elinux/vp_os_ltt.h>
 
 // Sender function

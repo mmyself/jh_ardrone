@@ -52,6 +52,7 @@ struct _video_controller_t {
   bool_t          do_azq;
   int32_t         aq, bq;
   uint32_t        target_bitrate; // Target bitrate in bit/s
+  uint32_t        target_size;    // Target size per image
 
   // External & internal buffer used by packetizer layer
   // video_stream_t* ex_stream;      // External buffer
@@ -68,6 +69,7 @@ struct _video_controller_t {
   uint32_t  picture_type;
   int32_t   width;                // Size of picture currently decoded
   int32_t   height;
+  bool_t    resolution_changed;   // if current frame resolution differs from previous one, this flag is set to TRUE
   int32_t   num_blockline;        // Number of blocklines per picture
   int32_t   mb_blockline;         // Number of macroblocks per blockline for this picture
   int32_t   blockline;            // Current blockline in picture
@@ -98,6 +100,9 @@ C_RESULT video_controller_cleanup( video_controller_t* controller );
 // Configuration api
 // video_controller_set_bitrate allows you to set the target bitrate
 C_RESULT video_controller_set_bitrate( video_controller_t* controller, uint32_t target );
+
+// video_controller_set_target_size allows you yo set a target size for each picture
+C_RESULT video_controller_set_target_size( video_controller_t* controller, uint32_t target );
 
 // Set format for picture to be decoded
 // This function resize internal buffers if needed

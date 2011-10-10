@@ -130,6 +130,13 @@ C_RESULT vp_com_open_socket(vp_com_socket_t* sck, Read* read, Write* write)
     closesocket( s );
   }
 
+  if (sck->block != VP_COM_DEFAULT &&
+      sck->block != VP_COM_WAITALL &&
+      sck->block != VP_COM_DONTWAIT)
+  {
+    sck->block = VP_COM_DEFAULT;
+  }
+
   return res;
 }
 
@@ -244,11 +251,20 @@ C_RESULT vp_com_read_udp_socket(vp_com_socket_t* sck, int8_t* buffer, int32_t* s
 
   socklen_t from_len = sizeof(from);
 
+  int flags = 0;
+  if (VP_COM_WAITALL == sck->block)
+    flags |= MSG_WAITALL;
+  else if (VP_COM_DONTWAIT == sck->block)
+  {
+    u_long iMode = 1;
+    ioctlsocket (s, FIONBIO, &iMode);
+  }
+
   if(s >= 0)
   {
     res = VP_COM_OK;
 
-	*size = recvfrom(s, (char*)buffer, *size, /*MSG_NOSIGNAL*/0, (struct sockaddr*)&from, &from_len );
+	*size = recvfrom(s, (char*)buffer, *size, flags, (struct sockaddr*)&from, &from_len );
 	
 
     if(*size < 0)
@@ -288,6 +304,13 @@ C_RESULT vp_com_read_udp_socket(vp_com_socket_t* sck, int8_t* buffer, int32_t* s
     res = VP_COM_ERROR;
   }
 
+  if (VP_COM_DONTWAIT == sck->block)
+  {
+    u_long iMode = 0;
+    ioctlsocket (s, FIONBIO, &iMode);
+  }
+
+
   return res;
 }
 
@@ -310,6 +333,15 @@ C_RESULT vp_com_write_udp_socket(vp_com_socket_t* sck, const int8_t* buffer, int
   int s = (int) sck->priv;
   struct sockaddr_in to;
 
+  int flags = 0;
+  if (VP_COM_WAITALL == sck->block)
+    flags |= MSG_WAITALL;
+  else if (VP_COM_DONTWAIT == sck->block)
+  {
+    u_long iMode = 1;
+    ioctlsocket (s, FIONBIO, &iMode);
+  }
+
   if(s >= 0)
   {
     res = VP_COM_OK;
@@ -320,7 +352,7 @@ C_RESULT vp_com_write_udp_socket(vp_com_socket_t* sck, const int8_t* buffer, int
     to.sin_port         = htons(sck->port);
 
     //*size = sendto( s, (char*)buffer, *size, 0, (struct sockaddr*)&to, sizeof(to) );
-	*size = send( s, (char*)buffer, *size, 0);
+	*size = send( s, (char*)buffer, *size, flags);
 
     if(*size < 0)
     {
@@ -352,6 +384,12 @@ C_RESULT vp_com_write_udp_socket(vp_com_socket_t* sck, const int8_t* buffer, int
     res = VP_COM_ERROR;
   }
 
+  if (VP_COM_DONTWAIT == sck->block)
+  {
+    u_long iMode = 0;
+    ioctlsocket (s, FIONBIO, &iMode);
+  }
+
   return res;
 }
 
@@ -360,10 +398,19 @@ C_RESULT vp_com_read_socket(vp_com_socket_t* socket, int8_t* buffer, int32_t* si
   C_RESULT res;
   SOCKET s = (SOCKET) socket->priv;
 
+  int flags = 0;
+  if (VP_COM_WAITALL == socket->block)
+    flags |= MSG_WAITALL;
+  else if (VP_COM_DONTWAIT == socket->block)
+  {
+    u_long iMode = 1;
+    ioctlsocket (s, FIONBIO, &iMode);
+  }
+
   if(s >= 0)
   {
     res = VP_COM_OK;
-    *size = /*read*/recv(s, buffer, *size,0);
+    *size = /*read*/recv(s, buffer, *size, flags);
     if(*size < 0)
     {
       if( errno == EAGAIN )
@@ -379,6 +426,12 @@ C_RESULT vp_com_read_socket(vp_com_socket_t* socket, int8_t* buffer, int32_t* si
   else
   {
     res = VP_COM_ERROR;
+  }
+
+  if (VP_COM_DONTWAIT == socket->block)
+  {
+    u_long iMode = 0;
+    ioctlsocket (s, FIONBIO, &iMode);
   }
 
   return res;
@@ -389,10 +442,19 @@ C_RESULT vp_com_write_socket(vp_com_socket_t* socket, const int8_t* buffer, int3
   C_RESULT res;
   SOCKET s = (SOCKET) socket->priv;
 
+  int flags = 0;
+  if (VP_COM_WAITALL == socket->block)
+    flags |= MSG_WAITALL;
+  else if (VP_COM_DONTWAIT == socket->block)
+  {
+    u_long iMode = 1;
+    ioctlsocket (s, FIONBIO, &iMode);
+  }
+
   if(s >= 0)
   {
     res = VP_COM_OK;
-    *size = send(s, buffer, *size,0);
+    *size = send(s, buffer, *size, flags);
     if(*size < 0)
     {
       if( errno == EAGAIN )
@@ -408,6 +470,12 @@ C_RESULT vp_com_write_socket(vp_com_socket_t* socket, const int8_t* buffer, int3
   else
   {
     res = VP_COM_ERROR;
+  }
+
+  if (VP_COM_DONTWAIT == socket->block)
+  {
+    u_long iMode = 0;
+    ioctlsocket (s, FIONBIO, &iMode);
   }
 
   return res;

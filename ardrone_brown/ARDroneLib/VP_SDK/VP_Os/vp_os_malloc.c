@@ -55,6 +55,18 @@ vp_os_free(void *ptr)
 #endif // <- DEBUG_MODE
 }
 
+void
+vp_os_sfree(void **ptr)
+{
+#ifdef DEBUG_MODE
+  assert(*ptr);
+  free(*ptr);
+#else // ! DEBUG_MODE
+  free(*ptr);
+#endif // <- DEBUG_MODE
+  *ptr=NULL;
+}
+
 // align_size has to be a power of two !!!
 //
 // The basic working of this algorithm is to allocate a bigger chunk of data than requested.
@@ -154,7 +166,8 @@ vp_os_realloc(void *ptr, size_t size)
 {
 #ifdef DEBUG_MODE
   void *res = realloc(ptr, size);
-  assert(res);
+  if (res==NULL) { perror(__FUNCTION__); }
+   assert(res!=NULL);
   return (res);
 #else // ! DEBUG_MODE
   return realloc(ptr, size);

@@ -94,3 +94,15 @@ int32_t ardrone_timer_delta_ms(ardrone_timer_t* timer)
 
   return ardrone_timer_elapsed_ms(&timer_current) - ardrone_timer_elapsed_ms(timer);
 }
+
+int32_t ardrone_timer_delta_us(ardrone_timer_t* timer)
+{
+	ardrone_timer_t timer_current;
+	
+	timer_current.init = TRUE;
+	timer_current.tv_init = timer->tv_init;
+	
+	ardrone_timer_update(&timer_current);
+	
+	return ardrone_timer_elapsed_us(&timer_current) - ardrone_timer_elapsed_us(timer);
+}

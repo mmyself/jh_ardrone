@@ -72,6 +72,50 @@ C_RESULT ardrone_control_shutdown(void)
 	return C_OK;
 }
 
+C_RESULT ardrone_control_connect_to_drone()
+{
+	int res_open_socket;
+
+#ifdef _WIN32
+	int timeout_windows=1000;/*milliseconds*/
+#else
+	struct timeval tv;
+#endif
+
+	vp_com_close(COM_CONTROL(), &control_socket);
+
+	res_open_socket = vp_com_open(COM_CONTROL(), &control_socket, &control_read, &control_write);
+	if( VP_SUCCEEDED(res_open_socket) )
+	{
+		tv.tv_sec   = 1;
+		tv.tv_usec  = 0;
+
+		setsockopt((int32_t)control_socket.priv,
+					SOL_SOCKET,
+					SO_RCVTIMEO,
+					#ifdef _WIN32
+						(const char*)&timeout_windows, sizeof(timeout_windows)
+					#else
+						(const char*)&tv, sizeof(tv)
+					#endif
+					);
+
+		control_socket.is_disable = FALSE;
+		return C_OK;
+	}
+	else
+	{
+		DEBUG_PRINT_SDK("VP_Com : Failed to open socket for control\n");
+		perror("FTOSFC");
+		return C_FAIL;
+	}
+}
+
+
+/**
+ * \brief Signals the client control thread that new navdata were received.
+ * Called by one of the navdata callbacks.
+ */
 C_RESULT ardrone_control_resume_on_navdata_received(uint32_t new_ardrone_state)
 {
 	vp_os_mutex_lock(&control_mutex);
@@ -120,7 +164,6 @@ C_RESULT ardrone_control_send_event( ardrone_control_event_t* event )
   res = C_FAIL;
 
   vp_os_mutex_lock(&event_queue_mutex);
-
     next_index_in_queue = (start_index_in_queue + 1) & (ARDRONE_CONTROL_MAX_NUM_EVENTS_IN_QUEUE - 1);
     if( next_index_in_queue != end_index_in_queue )
     {
@@ -128,7 +171,7 @@ C_RESULT ardrone_control_send_event( ardrone_control_event_t* event )
       start_index_in_queue = next_index_in_queue;
 
       res = C_OK;
-    }
+  }
 
   vp_os_mutex_unlock(&event_queue_mutex);
 
@@ -137,63 +180,49 @@ C_RESULT ardrone_control_send_event( ardrone_control_event_t* event )
 
 DEFINE_THREAD_ROUTINE( ardrone_control, nomParams )
 {
+	C_RESULT res_wait_navdata = C_OK;
 	C_RESULT res = C_OK;
 	uint32_t retry, current_ardrone_state;
 	int32_t next_index_in_queue;
 	ardrone_control_event_ptr_t  current_event;
-	struct timeval tv;
-	int timeout_windows=1000;/*milliseconds*/
 	
 	retry = 0;
 	current_event = NULL;
 	
-	tv.tv_sec   = 1;
-	tv.tv_usec  = 0;
-	
 	DEBUG_PRINT_SDK("Thread control in progress...\n");
 	control_socket.is_disable = TRUE;
 	
+	ardrone_control_connect_to_drone();
+
 	while( bContinue 
           && !ardrone_tool_exit() )
 	{
 		vp_os_mutex_lock(&control_mutex);
 		control_waited = TRUE;
-		res = vp_os_cond_timed_wait(&control_cond, 1000);
+
+		/* Wait for new navdata to be received. */
+		res_wait_navdata = vp_os_cond_timed_wait(&control_cond, 1000);
 		vp_os_mutex_unlock(&control_mutex);
-		
-		if(VP_FAILED(res))
+
+		/*
+		 * In case of timeout on the navdata, we assume that there was a problem
+		 * with the Wifi connection.
+		 * It is then safer to close and reopen the control socket (TCP 5559) since
+		 * some OS might stop giving data but not signal any disconnection.
+		 */
+		if(VP_FAILED(res_wait_navdata))
 		{
-			DEBUG_PRINT_SDK("Control timeout\n");
+			DEBUG_PRINT_SDK("Timeout while waiting for new navdata.\n");
 			if(!control_socket.is_disable)
 				control_socket.is_disable = TRUE;
 		}
 			
 		if(control_socket.is_disable)
 		{
-			vp_com_close(COM_CONTROL(), &control_socket);
-
-			res = vp_com_open(COM_CONTROL(), &control_socket, &control_read, &control_write);
-				if( VP_SUCCEEDED(res) )
-				{
-					setsockopt((int32_t)control_socket.priv, 
-								SOL_SOCKET, 
-								SO_RCVTIMEO, 
-								#ifdef _WIN32 
-									(const char*)&timeout_windows, sizeof(timeout_windows)
-								#else
-									(const char*)&tv, sizeof(tv)
-								#endif
-								); 
-
-					control_socket.is_disable = FALSE;
-				}					  
-				else
-				{
-					DEBUG_PRINT_SDK("VP_Com : Failed to open socket for control\n");
-				}
+			ardrone_control_connect_to_drone();
 		}
 		
-		if(VP_SUCCEEDED(res))
+		if(VP_SUCCEEDED(res_wait_navdata) && (!control_socket.is_disable))
 		{
 			vp_os_mutex_lock(&control_mutex);
 			current_ardrone_state = ardrone_state;
@@ -203,10 +232,9 @@ DEFINE_THREAD_ROUTINE( ardrone_control, nomParams )
 			if( ardrone_tool_exit() ) // Test if we received a signal because we are quitting the application
 				THREAD_RETURN( res );
 			
-			if( current_event == NULL )
+ 			if( current_event == NULL )
 			{
 				vp_os_mutex_lock(&event_queue_mutex);
-				
 				next_index_in_queue = (end_index_in_queue + 1) & (ARDRONE_CONTROL_MAX_NUM_EVENTS_IN_QUEUE - 1);
 				
 				if( next_index_in_queue != start_index_in_queue )
@@ -226,6 +254,7 @@ DEFINE_THREAD_ROUTINE( ardrone_control, nomParams )
 				
 				vp_os_mutex_unlock(&event_queue_mutex);
 			}
+			
 			if( current_event != NULL )
 			{
 				switch( current_event->event )
@@ -242,6 +271,7 @@ DEFINE_THREAD_ROUTINE( ardrone_control, nomParams )
 						break;
 						
 					case CFG_GET_CONTROL_MODE:
+					case CUSTOM_CFG_GET_CONTROL_MODE: /* multiconfiguration support */
 						res = ardrone_control_configuration_run( current_ardrone_state, (ardrone_control_configuration_event_t*) current_event );
 						break;
 						
@@ -269,7 +299,13 @@ DEFINE_THREAD_ROUTINE( ardrone_control, nomParams )
  					if( current_event->ardrone_control_event_end != NULL )
 						current_event->ardrone_control_event_end( current_event );
 					
+ 					/* Make the thread read a new event on the next loop iteration */
 					current_event = NULL;
+				}
+				else
+				{
+					/* Not changing 'current_event' makes the loop process the same
+					 * event when the next navdata packet arrives. */
 				}
 			}
 		}

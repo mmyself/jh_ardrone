@@ -1,3 +1,5 @@
+#include <config.h>
+
 #include <VP_Os/vp_os_print.h>
 #include <VP_Os/vp_os_malloc.h>
 #include <VP_Os/vp_os_delay.h>
@@ -38,35 +40,40 @@ C_RESULT video_com_stage_open(video_com_config_t *cfg)
   if( cfg->protocol == VP_COM_UDP )
   {
     struct timeval tv;
-	int timeout_for_windows=1000; /* timeout in milliseconds */
+#ifdef _WIN32
+    int timeout_for_windows=1000; /* timeout in milliseconds */
+#endif
 
     // 1 second timeout
     tv.tv_sec   = 1;
     tv.tv_usec  = 0;
 
     cfg->socket.protocol = VP_COM_UDP;
+    cfg->socket.is_multicast = 1; // enable multicast for video
+    cfg->socket.multicast_base_addr = MULTICAST_BASE_ADDR;
+
     res = vp_com_open(cfg->com, &cfg->socket, &cfg->read, &cfg->write);
 
     if( VP_SUCCEEDED(res) )
     {
-		int numi= 1;
-		
-		socklen_t numi1= sizeof(int);
+      int numi= 1;
+
+      socklen_t numi1= sizeof(int);
 
 #ifdef _WIN32
-		setsockopt((int32_t)cfg->socket.priv, SOL_SOCKET, SO_RCVTIMEO, SSOPTCAST_RO(&timeout_for_windows), sizeof(timeout_for_windows));
+      setsockopt((int32_t)cfg->socket.priv, SOL_SOCKET, SO_RCVTIMEO, SSOPTCAST_RO(&timeout_for_windows), sizeof(timeout_for_windows));
 #else
-		setsockopt((int32_t)cfg->socket.priv, SOL_SOCKET, SO_RCVTIMEO, SSOPTCAST_RO(&tv), sizeof(tv));
+      setsockopt((int32_t)cfg->socket.priv, SOL_SOCKET, SO_RCVTIMEO, SSOPTCAST_RO(&tv), sizeof(tv));
 #endif		
 
-		// Increase buffer for receiving datas.
-		setsockopt( (int32_t)cfg->socket.priv, SOL_SOCKET, SO_DEBUG, SSOPTCAST_RO(&numi), sizeof(numi));
-		numi= 256*256;
-		setsockopt( (int32_t)cfg->socket.priv, SOL_SOCKET, SO_RCVBUF, SSOPTCAST_RO(&numi),numi1);
-		getsockopt( (int32_t)cfg->socket.priv, SOL_SOCKET, SO_RCVBUF, SSOPTCAST_RW(&numi),&numi1);
+      // Increase buffer for receiving datas.
+      setsockopt( (int32_t)cfg->socket.priv, SOL_SOCKET, SO_DEBUG, SSOPTCAST_RO(&numi), sizeof(numi));
+      numi= 256*256;
+      setsockopt( (int32_t)cfg->socket.priv, SOL_SOCKET, SO_RCVBUF, SSOPTCAST_RO(&numi),numi1);
+      getsockopt( (int32_t)cfg->socket.priv, SOL_SOCKET, SO_RCVBUF, SSOPTCAST_RW(&numi),&numi1);
 		
-		numi1=0;
-		setsockopt( (int32_t)cfg->socket.priv, SOL_SOCKET, SO_DEBUG, SSOPTCAST_RO(&numi1), sizeof(numi1));
+      numi1=0;
+      setsockopt( (int32_t)cfg->socket.priv, SOL_SOCKET, SO_DEBUG, SSOPTCAST_RO(&numi1), sizeof(numi1));
     }
   }
   else if( cfg->protocol == VP_COM_TCP )
@@ -109,12 +116,17 @@ C_RESULT video_com_stage_transform(video_com_config_t *cfg, vp_api_io_data_t *in
     out->size = cfg->buffer_size;
     res = cfg->read(&cfg->socket, out->buffers[0], &out->size);
 
-	if( cfg->protocol == VP_COM_UDP )
+    if( cfg->protocol == VP_COM_UDP )
     {
       if( out->size == 0 )
       {
-		  int32_t one = 1, len = sizeof(one);
-        cfg->write(&cfg->socket, (int8_t*) &one, &len);
+        // Send "1" for Unicast
+        // Send "2" to enable Multicast
+        int32_t flag = 1, len = sizeof(flag);
+        if ( cfg->socket.is_multicast == 1 )
+          flag = 2;
+
+        cfg->write(&cfg->socket, (int8_t*) &flag, &len);
       }
     }
 
@@ -139,7 +151,6 @@ C_RESULT video_com_stage_transform(video_com_config_t *cfg, vp_api_io_data_t *in
 C_RESULT video_com_stage_close(video_com_config_t *cfg)
 {
   vp_com_close(cfg->com, &cfg->socket);
-
   return C_OK;
 }
 

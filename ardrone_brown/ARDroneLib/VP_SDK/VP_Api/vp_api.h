@@ -49,7 +49,10 @@ typedef enum _VP_API_IO_TYPES_
   VP_API_OUTPUT_SDL,
   VP_API_OUTPUT_LCD,
   VP_API_OUTPUT_FILE,
-  VP_API_OUTPUT_SOCKET
+  VP_API_OUTPUT_SOCKET,
+
+  // MIXERS
+  VP_API_PIPE
 }
 VP_API_IO_TYPE;
 
@@ -118,6 +121,7 @@ typedef struct _vp_api_io_pipeline_
   vp_api_handle_msg_t     handle_msg;
   uint32_t                nb_still_running;
   vp_api_fifo_t           fifo;
+
 }
 vp_api_io_pipeline_t;
 

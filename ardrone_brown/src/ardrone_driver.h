@@ -5,6 +5,7 @@
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/Image.h>
 #include <ardrone_brown/Navdata.h>
+#include "ardrone_sdk.h"
 
 class ARDroneDriver
 {
@@ -27,8 +28,12 @@ private:
 	image_transport::CameraPublisher image_pub;
 	ros::Publisher navdata_pub;
 
+	//ros::Subscriber toggleCam_sub;
+	ros::ServiceServer toggleCam_service;
+
 	int last_frame_id;
 	int flying_state;
+
 };
 
 #endif

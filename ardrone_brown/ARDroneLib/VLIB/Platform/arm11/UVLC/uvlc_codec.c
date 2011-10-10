@@ -23,12 +23,14 @@ C_RESULT uvlc_read_block_unquantize( video_controller_t* controller, int16_t* da
 
 	zztable = &video_zztable_t81[0];
 	code = run = last = 0;
+	
 	if (quant == TABLE_QUANTIZATION)
 	{
+	  quant = TBL_QUANT_QUALITY;
+	}
 	  // table quantization mode
 	  video_read_data( stream, (uint32_t*) &code, 10 );
-	  int16_t* p_iquant_table = (int16_t*)(&iquant_tab[0]);
-	  code *= *p_iquant_table;
+	  code *= QUANT_I(0,quant);
 	  data[0] = code;
 
 	  if( nc > 0 )
@@ -40,53 +42,12 @@ C_RESULT uvlc_read_block_unquantize( video_controller_t* controller, int16_t* da
 
 	      zztable    += (run+1);
 	      index       = *zztable;
-		  code *= p_iquant_table[index];
+	  	code *= QUANT_I(index,quant);
 		  data[index] = code;
-
 		  uvlc_decode( stream, &run, &code, &last);
 	    }
 	  }
-	}
-	else
-	{
-	  // const quantization mode
-	  // DC coeff
-	  video_read_data( stream, (uint32_t*) &code, 10 );
-
-      if( controller->picture_type == VIDEO_PICTURE_INTRA ) // intra
-	  {
-		code <<= 3;
-	  }
-	  else
-	  {
-		code = quant*( 2*code + 1 );
-		if( quant & 1 )
-			code -= 1;
-	  }
-	  data[0] = code;
-
-	  if( nc > 0 )
-	  {
-		uvlc_decode( stream, &run, &code, &last);
-
-		while( last == 0 )
-		{
-			VP_OS_ASSERT( run < 64 );
-
-			zztable    += (run+1);
-			index       = *zztable;
-
-			code = quant*( 2*code + 1 );
-			if( quant & 1 )
-				code -= 1;
-
-			data[index] = code;
-
-			uvlc_decode( stream, &run, &code, &last);
-		}
-	  }
-	}
-
+	
 	return C_OK;
 }
 

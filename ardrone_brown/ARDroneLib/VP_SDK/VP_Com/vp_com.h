@@ -80,8 +80,9 @@ typedef enum _VP_COM_SOCKET_PROTOCOL_
 
 typedef enum _VP_COM_SOCKET_OPTIONS_
 {
-  VP_COM_NON_BLOCKING = 1,
-  VP_COM_NO_DELAY     = 2
+  VP_COM_NON_BLOCKING   = 1,
+  VP_COM_NO_DELAY       = 2,
+  VP_COM_MULTICAST_ON   = 4,
 } VP_COM_SOCKET_OPTIONS;
 
 typedef enum _VP_COM_WIFI_EVENTS_
@@ -99,6 +100,13 @@ typedef enum _vp_com_autoip_t {
   VP_COM_AUTOIP_DISABLE = 0,
   VP_COM_AUTOIP_ENABLE  = 1,    // Use of autoip
 } vp_com_autoip_t;
+
+typedef enum _VP_COM_SOCKET_BLOCKING_OPTIONS {
+  VP_COM_DEFAULT = 0,
+  VP_COM_WAITALL = 1,
+  VP_COM_DONTWAIT = 2,
+} VP_COM_SOCKET_BLOCKING_OPTIONS;
+     
 
 typedef C_RESULT (*select_cb) (struct _vp_com_socket_t* server_socket, struct _vp_com_socket_t* client_socket, VP_COM_SOCKET_STATE state, Write write);
 
@@ -128,6 +136,7 @@ typedef struct _vp_com_wifi_config_t
   uint32_t    secure;                                       /// if secure == 1 then we use the defined passkey
   char        passkey[VP_COM_MAX_PINCODE_SIZE];             /// passkey to use for futur connection
   char        country[4];                                   /// Wifi country code. See Broadcom BCM4318 SDIO Country Code
+
 } vp_com_wifi_config_t;
 
 typedef struct _vp_com_bluetooth_config_t
@@ -192,12 +201,17 @@ typedef struct _vp_com_socket_t
 {
   VP_COM_SOCKET_TYPE        type;                             /// Socket type (Server or client)
   VP_COM_SOCKET_PROTOCOL    protocol;                         /// Protocol (Rfcomm, Tcp or Udp)
+  VP_COM_SOCKET_BLOCKING_OPTIONS block;                       /// Blocking policy for Tcp/Udp sockets
 
   uint32_t                  scn;                              /// Channel used for the connection (only for a Rfcomm socket)
   uint32_t                  port;                             /// Port for the connection (only for ip based protocol)
   char                      serverHost[VP_COM_NAME_MAXSIZE];  /// ip of the serverhost (if client)
+  uint32_t                  remotePort;                       /// port used by client when incoming connection opened
   select_cb                 select;                           /// callback when a (de)connection is received
   Read_from                 read;                             /// callback when data are received
+
+  uint32_t                  is_multicast;                     /// tells if the socket is in multicast mode or not
+  uint32_t                  multicast_base_addr;              /// base address used to compute multicast address to use
 
   /// Private data
   void*                     priv;                             /// socket number

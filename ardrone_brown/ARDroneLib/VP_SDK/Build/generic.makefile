@@ -29,7 +29,7 @@ ifeq ($(USE_NDS),yes)
   INTERNAL_DSBUILD:=$(Q)dsbuild
 endif
 
-INTERNAL_SOURCE_EXTENSIONS= .c .S .s
+INTERNAL_SOURCE_EXTENSIONS= .c .S .s .cpp
 
 INTERNAL_MKDIR=mkdir -p
 INTERNAL_ECHO=echo

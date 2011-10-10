@@ -40,6 +40,8 @@ C_RESULT ardrone_navdata_client_init(void)
 
   COM_CONFIG_SOCKET_NAVDATA(&navdata_socket, VP_COM_CLIENT, NAVDATA_PORT, wifi_ardrone_ip);
   navdata_socket.protocol = VP_COM_UDP;
+  navdata_socket.is_multicast = 1;      // enable multicast for Navdata
+  navdata_socket.multicast_base_addr = MULTICAST_BASE_ADDR;
 
   vp_os_mutex_init(&navdata_client_mutex);
   vp_os_cond_init(&navdata_client_condition, &navdata_client_mutex);
@@ -70,11 +72,17 @@ C_RESULT ardrone_navdata_client_resume(void)
 
 C_RESULT ardrone_navdata_open_server(void)
 {
-  int32_t one = 1, len = sizeof(one);
+  // Flag value :
+  // 1 -> Unicast
+  // 2 -> Multicast
+  int32_t flag = 1, len = sizeof(flag);
 
   if( navdata_write != NULL )
   {
-    navdata_write(&navdata_socket, (const int8_t*) &one, &len);
+    if (navdata_socket.is_multicast == 1)
+      flag = 2;
+
+    navdata_write(&navdata_socket, (const int8_t*) &flag, &len);
   }
 
   return C_OK;
@@ -85,7 +93,11 @@ DEFINE_THREAD_ROUTINE( navdata_update, nomParams )
   C_RESULT res;
   int32_t  i, size;
   uint32_t cks, navdata_cks, sequence = NAVDATA_SEQUENCE_DEFAULT-1;
-  struct timeval tv; int timeout_for_windows=1000/*milliseconds*/;
+  struct timeval tv;
+#ifdef _WIN32
+  int timeout_for_windows=1000/*milliseconds*/;
+#endif
+
 
   navdata_t* navdata = (navdata_t*) &navdata_buffer[0];
 
@@ -155,7 +167,8 @@ DEFINE_THREAD_ROUTINE( navdata_update, nomParams )
 #endif
 		{
 			// timeout
-			PRINT("Timeout\n");
+			PRINT("Timeout when reading navdatas - resending a navdata request on port %i\n",NAVDATA_PORT);
+			/* Resend a request to the drone to get navdatas */
 			ardrone_navdata_open_server();
 			sequence = NAVDATA_SEQUENCE_DEFAULT-1;
 			num_retries++;

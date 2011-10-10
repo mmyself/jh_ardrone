@@ -128,15 +128,16 @@ $(eval $(call CHECK_YES_NO,RELEASE_BUILD))
 $(eval $(call CHECK_YES_NO,USE_ARDRONELIB))
 $(eval $(call CHECK_YES_NO,USE_ARDRONE_VISION))
 $(eval $(call CHECK_YES_NO,USE_ARDRONE_POLARIS))
+$(eval $(call CHECK_YES_NO,USE_ARDRONE_VICON))
 $(eval $(call CHECK_YES_NO,USE_ARDRONE_TEST_BENCHS))
 $(eval $(call CHECK_YES_NO,USE_ARDRONE_CALIBRATION))
 
 ifeq "$(USE_ELINUX)" "yes"
   $(eval $(call CHECK_YES_NO,USE_PARROTOS_CORE))
-  ifneq "$(TOOLCHAIN_VERSION)" "arm-2006q3"
-  ifneq "$(TOOLCHAIN_VERSION)" "arm-eglibc"
   ifneq "$(TOOLCHAIN_VERSION)" "arm-uclibc"
-    $(warning ERROR Bad TOOLCHAIN_VERSION : must be "arm-2006q3" or "arm-eglibc" or "arm-uclibc")
+  ifneq "$(TOOLCHAIN_VERSION)" "arm-eglibc"
+  ifneq "$(TOOLCHAIN_VERSION)" "arm-2010.09"
+    $(warning ERROR Bad TOOLCHAIN_VERSION : must be "arm-uclibc", "arm-eglibc", or "arm-2010.09")
     ERROR=1
   endif
   endif
@@ -172,9 +173,10 @@ endif
 ifeq "$(USE_SDK)" "yes"
   $(eval $(call CHECK_DIR,$(ALL_SOURCES)/$(SDK_SOURCE_DIR),SDK_VERSION))
   $(eval $(call EXIT_IF_ERROR))
-  ifeq "$(USE_FFMPEG)" "yes"
-    $(eval $(call CHECK_DIR,$(ALL_SOURCES)/$(SDK_SOURCE_DIR)/PFFMPEG/$(FF_ARCH),FF_ARCH))
-  endif
+  #Disabled by Stephane - this is probably deprecated
+  #ifeq "$(USE_FFMPEG)" "yes"
+  #  $(eval $(call CHECK_DIR,$(ALL_SOURCES)/$(SDK_SOURCE_DIR)/PFFMPEG/$(FF_ARCH),FF_ARCH))
+  #endif
 endif
 ifeq "$(USE_BONJOUR)" "yes"
    $(eval $(call CHECK_DIR,$(ALL_SOURCES)/bonjour/$(BONJOUR_VERSION)/Bonjour,BONJOUR_VERSION))

@@ -3,7 +3,7 @@
 
 #include <VLIB/video_controller.h>
 
-#define VLIB_DEFAULT_BITRATE          (100) /* In kb/s */
+#define VLIB_DEFAULT_BITRATE          (0) /* In bytes/frame, 0 means bitrate control disabled*/
 
 struct _video_codec_t {
   encode_blockline_fc encode_blockline;
@@ -15,16 +15,17 @@ struct _video_codec_t {
 /******** Available codecs ********/
 typedef enum _codec_type_t {
   NULL_CODEC    = 0,
-  UVLC_CODEC,
-  MJPEG_CODEC,
-  P263_CODEC
+  UVLC_CODEC    = 0x20,       // codec_type value is used for START_CODE
+  MJPEG_CODEC,                // not used
+  P263_CODEC,                 // not used
+  P264_CODEC    = 0x40
 } codec_type_t;
 
 /******** API ********/
 C_RESULT video_codec_open( video_controller_t* controller, codec_type_t codec_type );
 C_RESULT video_codec_close( video_controller_t* controller );
 
-// Encode/Decode a complete picture given 
+// Encode/Decode a complete picture given
 C_RESULT video_encode_picture( video_controller_t* controller, const vp_api_picture_t* picture, bool_t* got_image );
 C_RESULT video_decode_picture( video_controller_t* controller, vp_api_picture_t* picture, video_stream_t* ex_stream, bool_t* got_image );
 
@@ -34,9 +35,6 @@ static INLINE C_RESULT video_encode_blockline( video_controller_t* controller, c
   return controller->video_codec->encode_blockline( controller, blockline, picture_complete );
 }
 
-static INLINE C_RESULT video_decode_blockline( video_controller_t* controller, vp_api_picture_t* blockline, bool_t* got_image )
-{
-  return controller->video_codec->decode_blockline( controller, blockline, got_image );
-}
+C_RESULT video_decode_blockline( video_controller_t* controller, vp_api_picture_t* blockline, bool_t* got_image );
 
 #endif // _VLIB_H_

@@ -13,6 +13,11 @@
 typedef enum _ardrone_config_state_t {
   CONFIG_REQUEST_INI,
   CONFIG_RECEIVE_INI,
+  /* Stephane - multiconfiguration support */
+  CUSTOM_CONFIG_REQUEST,
+  CUSTOM_CONFIG_RECEIVE,
+  CONFIG_RECEIVED,
+  CUSTOM_CONFIG_RECEIVED
 } ardrone_config_state_t;
 
 typedef struct _ardrone_control_configuration_event_t {

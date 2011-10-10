@@ -15,6 +15,22 @@ ARDroneDriver::ARDroneDriver()
 	land_sub = node_handle.subscribe("/ardrone/land", 1, &landCallback);
 	image_pub = image_transport.advertiseCamera("/ardrone/image_raw", 1);
 	navdata_pub = node_handle.advertise<ardrone_brown::Navdata>("/ardrone/navdata", 1);
+	//toggleCam_sub = node_handle.subscribe("/ardrone/togglecam", 10, &toggleCamCallback);
+
+#ifdef _USING_SDK_1_7_
+	//Ensure that the horizontal camera is running
+	int cam_state = 0; // horizontal
+	int set_navdata_demo_value = 0;
+	ARDRONE_TOOL_CONFIGURATION_ADDEVENT (video_channel, &cam_state, NULL);
+	ARDRONE_TOOL_CONFIGURATION_ADDEVENT (navdata_demo, &set_navdata_demo_value, NULL);
+#else
+	//Ensure that the horizontal camera is running
+	ardrone_at_set_toy_configuration("video:video_channel","0");
+#endif
+
+	toggleCam_service = node_handle.advertiseService("/ardrone/togglecam", toggleCamCallback);
+
+
 }
 
 ARDroneDriver::~ARDroneDriver()
@@ -24,13 +40,11 @@ ARDroneDriver::~ARDroneDriver()
 void ARDroneDriver::run()
 {
 	ros::Rate loop_rate(40);
-        //printf("ARDrone run:\n");
+
 	while (node_handle.ok())
 	{
-		//printf("ARDrone node handle ok:\n");
 		if (current_frame_id != last_frame_id)
 		{
-			//printf("ARDrone current_frame_id != last_frame_id:\n");
 			publish_video();
 			publish_navdata();
 			last_frame_id = current_frame_id;
@@ -72,12 +86,13 @@ void ARDroneDriver::publish_navdata()
 	msg.rotX = navdata.phi / 1000.0; // tilt left/right
 	msg.rotY = -navdata.theta / 1000.0; // tilt forward/backward
 	msg.rotZ = -navdata.psi / 1000.0; // orientation
-	// printf("VX:%f VY:%f VZ:%f ", navdata.vx, navdata.vy, navdata.vz);
-	// the rest of Navdata  added by me
-	msg.altd = (float)navdata.altitude / 1000.0;
-	msg.vx = navdata.vx / 1000.0;
-	msg.vy = navdata.vy / 1000.0;
-	msg.vz = navdata.vz / 1000.0;
+
+	msg.altd = navdata.altitude; // cm
+	msg.vx = navdata.vx; // mm/sec
+	msg.vy = -navdata.vy; // mm/sec
+	msg.vz = -navdata.vz; // mm/sec
+
+	msg.tm = arnavtime.time;
 
 	// TODO: Ideally we would be able to figure out whether we are in an emergency state
 	// using the navdata.ctrl_state bitfield with the ARDRONE_EMERGENCY_MASK flag, but

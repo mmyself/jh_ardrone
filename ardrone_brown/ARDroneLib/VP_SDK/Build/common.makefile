@@ -13,7 +13,7 @@
 XCC=$(GENERIC_COMMAND_PREFIX)gcc
 XAR=$(GENERIC_COMMAND_PREFIX)ar
 
-ifdef ALL_TARGETS
+ifdef MYKONOS
 GENERIC_INCLUDES+=					\
 	-I$(ALL_TARGETS)/CommonSoft/include		\
 	-I$(ALL_TARGETS)/CommonSoft/include/xmlparser	\
@@ -22,7 +22,7 @@ endif
 
 # Used for include paths
 ########################
-ifdef ALL_SOURCES
+ifdef MYKONOS
 SDK_PATH:=$(ALL_SOURCES)/ardrone_api/$(SDK_VERSION)/ARDrone_API/ARDroneLib
 SDK_SOURCE_DIR=$(SDK_PATH)/VP_SDK
 VLIB_SOURCE_DIR=$(SDK_PATH)/VLIB
@@ -76,11 +76,6 @@ GENERIC_INCLUDES+=   \
 endif
 
 ifeq ($(USE_IPHONE),yes)
-  IPHONE_PLATFORM_TMP:=$(IPHONE_PLATFORM)
-  IPHONE_PLATFORM_TMP:=$(shell echo $(IPHONE_PLATFORM_TMP) | sed -e "s/iphone/iPhone/g")
-  IPHONE_PLATFORM_TMP:=$(shell echo $(IPHONE_PLATFORM_TMP) | sed -e "s/os/OS/g")
-  IPHONE_PLATFORM_TMP:=$(shell echo $(IPHONE_PLATFORM_TMP) | sed -e "s/simulator/Simulator/g")
-
   GENERIC_INCLUDES+=					\
 	-isysroot $(IPHONE_SDK_PATH) \
 	-I$(IPHONE_SDK_PATH)/usr/include/gcc/darwin/4.2
@@ -88,8 +83,8 @@ endif
 
 ifeq ($(USE_ELINUX),yes)
   GENERIC_INCLUDES+=					\
-	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_arm_nofpu_ardrone/usr/include	\
-	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_arm_nofpu_ardrone/usr/include/linux	\
+	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_$(BOARD_CPU)_$(BOARD_NAME)/usr/include	\
+	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_$(BOARD_CPU)_$(BOARD_NAME)/usr/include/linux	\
 	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/kernel/linux/include	\
 	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/kernel/linux/drivers	\
 	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/packages/drivers
@@ -97,7 +92,7 @@ ifeq ($(USE_ELINUX),yes)
   ifeq ($(USE_WIFI),yes)
   GENERIC_INCLUDES+=					\
 	-Dlinux -I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/packages/drivers/bcm4318/src_4_170_55/include	\
-	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_arm_nofpu_ardrone/include
+	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_$(BOARD_CPU)_$(BOARD_NAME)/include
   endif
 endif
 ifeq ($(USE_NDS),yes)
@@ -162,7 +157,7 @@ endif
 
 ifeq ($(USE_JPEG_P6),yes)
      GENERIC_INCLUDES+=                  			\
-	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/build_arm_nofpu_ardrone/jpeg-6b
+	-I$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/build_$(BOARD_CPU)_$(BOARD_NAME)/jpeg-6b
 endif
 ifeq ($(USE_BONJOUR),yes)
   GENERIC_INCLUDES+=-I$(BONJOUR_SOURCE_DIR)
@@ -219,8 +214,8 @@ ifeq ($(USE_VLIB),yes)
    ifeq ($(USE_ELINUX),yes)
 
     GENERIC_LIB_PATHS+=		\
-	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_arm_nofpu_ardrone/lib	\
- 	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_arm_nofpu_ardrone/usr/lib 
+	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_$(BOARD_CPU)_$(BOARD_NAME)/lib	\
+ 	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_$(BOARD_CPU)_$(BOARD_NAME)/usr/lib 
     
     GENERIC_LIBS+=					\
     -luiomap -ldma_alloc
@@ -269,16 +264,17 @@ endif
 ifeq ($(USE_ELINUX),yes)
   ifeq ($(USE_WIFI),yes)
     GENERIC_LIB_PATHS+= 				\
-	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_arm_nofpu_ardrone/lib
-      ifeq ($(USE_IWLIB),yes)
-        GENERIC_LIBS+=-liw
-      endif
+	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_$(BOARD_CPU)_$(BOARD_NAME)/lib
+
+    ifeq ($(USE_IWLIB), yes)
+      GENERIC_LIBS+=-liw
+    endif
   endif
   ifeq ($(USE_JPEG_P6),yes)
     
     GENERIC_LIB_PATHS+= 				\
-	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/build_arm_nofpu_ardrone/jpeg-6b  \
-	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_arm_nofpu_ardrone/usr/lib
+	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/build_$(BOARD_CPU)_$(BOARD_NAME)/jpeg-6b  \
+	-L$(ALL_SOURCES)/linux/$(ELINUX_VERSION)/Linux/lucie/build/staging-dir_$(BOARD_CPU)_$(BOARD_NAME)/usr/lib
 
     GENERIC_LIBS+= \
     -ljpeg \
@@ -300,6 +296,11 @@ endif
 ifeq ($(USE_ARDRONE_POLARIS),yes)
 GENERIC_LIB_PATHS+= 					\
 	-L$(ARDRONE_POLARIS_TARGET_DIR)
+endif
+
+ifeq ($(USE_ARDRONE_VICON),yes)
+GENERIC_LIB_PATHS+= 					\
+	-L$(ARDRONE_VICON_TARGET_DIR)
 endif
 
 ifeq ($(USE_ARDRONE_TEST_BENCHS),yes)

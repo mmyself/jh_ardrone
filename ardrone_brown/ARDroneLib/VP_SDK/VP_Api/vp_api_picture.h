@@ -12,9 +12,8 @@
 #define _VP_API_PICTURE_H_
 
 #include <VP_Os/vp_os_types.h>
-
 #ifdef USE_FFMPEG
-#include <avutil.h>
+#include <libavutil/avutil.h>
 #else
 /**
  * Pixel format. Notes:

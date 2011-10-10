@@ -72,13 +72,42 @@ C_RESULT vp_com_open_socket(vp_com_socket_t* sck, Read* read, Write* write)
   {
     case VP_COM_CLIENT:
       name.sin_addr.s_addr  = inet_addr(sck->serverHost);
-      if( connect( s, (struct sockaddr*)&name, sizeof( name ) ) == -1 )
+      if ( connect( s, (struct sockaddr*)&name, sizeof( name ) ) == -1 )
         res = VP_COM_ERROR;
       break;
 
     case VP_COM_SERVER:
       name.sin_addr.s_addr  = INADDR_ANY;
-      bind( s, (struct sockaddr*)&name, sizeof(struct sockaddr) );
+
+      if ( bind( s, (struct sockaddr*)&name, sizeof(struct sockaddr)) < 0 )
+        res = VP_COM_ERROR;
+
+      if ( sck->is_multicast == 1 )
+      {
+
+        if ( sck->multicast_base_addr == 0 )
+        {
+          PRINT("Error : multicast base address is not defined\n");
+          res = VP_COM_ERROR;
+          break;
+        }
+
+        in_addr_t multicast_address, drone_address;
+        vp_com_wifi_config_t *wifi_cfg = (vp_com_wifi_config_t*) wifi_config();
+
+        // compute remote address according to local address
+    	drone_address = inet_addr(wifi_cfg->server);
+        multicast_address = htonl( sck->multicast_base_addr | (ntohl(drone_address) & 0xFF) );
+
+        struct ip_mreq mreq;
+        mreq.imr_interface.s_addr = inet_addr(wifi_cfg->localHost);
+        mreq.imr_multiaddr.s_addr = multicast_address;
+
+        if ( setsockopt( s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq) ) < 0) {
+          PRINT("!!! Error enabling multicast !!!\n");
+        }
+      }
+
       break;
 
     default:
@@ -111,6 +140,13 @@ C_RESULT vp_com_open_socket(vp_com_socket_t* sck, Read* read, Write* write)
   else
   {
     close( s );
+  }
+
+  if (sck->block != VP_COM_DEFAULT &&
+      sck->block != VP_COM_WAITALL &&
+      sck->block != VP_COM_DONTWAIT)
+  {
+    sck->block = VP_COM_DEFAULT;
   }
 
   return res;
@@ -161,6 +197,9 @@ C_RESULT vp_com_wait_socket(vp_com_socket_t* server, vp_com_socket_t* client, in
 
 C_RESULT vp_com_sockopt_ip(vp_com_t* vp_com, vp_com_socket_t* socket, VP_COM_SOCKET_OPTIONS options)
 {
+  int32_t one  = 1;
+  int32_t zero = 0;
+
   C_RESULT res = VP_COM_ERROR;
 #ifdef CYGPKG_NET
   int s = (int) socket->priv;
@@ -180,33 +219,27 @@ C_RESULT vp_com_sockopt_ip(vp_com_t* vp_com, vp_com_socket_t* socket, VP_COM_SOC
 
   if( options & VP_COM_NO_DELAY )
   {
-    int32_t flag = 1;
-
     PRINT("Disabling the Nagle (TCP No Delay) algorithm for socket %d\n", s);
 
-    res = setsockopt( s, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(flag) ) < 0 ? C_FAIL : C_OK;
+    res = setsockopt( s, IPPROTO_TCP, TCP_NODELAY, (char *)&one, sizeof(one) ) < 0 ? C_FAIL : C_OK;
 
     if( FAILED(res) )
       PRINT("error disabling the Nagle algorithm\n");
   }
 
-/*
-#ifdef __linux__
-    flags = fcntl(s, F_GETFL, 0);
-#endif // __linux__
-    if( flags >= 0 )
-    {
-        flags |= O_NONBLOCK;
+  if ( options & VP_COM_MULTICAST_ON )
+  {
+    res = setsockopt( s, IPPROTO_IP, IP_MULTICAST_LOOP, &zero, sizeof(zero) );
+    if ( FAILED(res) )
+      PRINT("Error : cannot set IP_MULTICAST_LOOP to 0\n");
 
-      flags = fcntl(s, F_SETFL, flags );
-
-      res = VP_COM_OK;
+    struct in_addr interface_addr;
+    interface_addr.s_addr = INADDR_ANY;
+    res = setsockopt( s, IPPROTO_IP, IP_MULTICAST_IF, &interface_addr, sizeof(interface_addr) );
+    if ( FAILED(res) ) {
+      PRINT("Error : cannot enable multicast.\n");
     }
-    else
-    {
-      DEBUG_PRINT_SDK("Get Socket Options failed because of %d\n", errno);
-    }
-*/
+  }
 #endif
   return res;
 }
@@ -223,13 +256,21 @@ C_RESULT vp_com_read_udp_socket(vp_com_socket_t* sck, int8_t* buffer, int32_t* s
 
   socklen_t from_len = sizeof(from);
 
+  int flags = MSG_NOSIGNAL;
+  if (VP_COM_DONTWAIT == sck->block)
+    flags |= MSG_DONTWAIT;
+  else if (VP_COM_WAITALL == sck->block)
+    flags |= MSG_WAITALL;
+    
+
   if(s >= 0)
   {
     res = VP_COM_OK;
-    *size = recvfrom(s, (char*)buffer, *size, MSG_NOSIGNAL, (struct sockaddr*)&from, &from_len );
+    *size = recvfrom(s, (char*)buffer, *size, flags, (struct sockaddr*)&from, &from_len );
 
     if(*size < 0)
     {
+
 #ifdef USE_MINGW32
       switch( WSAGetLastError() )
       {
@@ -309,6 +350,12 @@ C_RESULT vp_com_write_udp_socket(vp_com_socket_t* sck, const int8_t* buffer, int
   int s = (int) sck->priv;
   struct sockaddr_in to;
 
+  int flags = 0;
+  if (VP_COM_DONTWAIT == sck->block)
+    flags |= MSG_DONTWAIT;
+  else if (VP_COM_WAITALL == sck->block)
+    flags |= MSG_WAITALL;
+
   if(s >= 0)
   {
     res = VP_COM_OK;
@@ -316,9 +363,12 @@ C_RESULT vp_com_write_udp_socket(vp_com_socket_t* sck, const int8_t* buffer, int
     vp_os_memset( (char*)&to, 0, sizeof(to) );
     to.sin_family       = AF_INET;
     to.sin_addr.s_addr  = sck->scn;
-    to.sin_port         = htons(sck->port);
+    if ( sck -> remotePort )
+        to.sin_port     = htons(sck->remotePort);
+    else
+        to.sin_port     = htons(sck->port);
 
-    *size = sendto( s, (char*)buffer, *size, 0, (struct sockaddr*)&to, sizeof(to) );
+    *size = sendto( s, (char*)buffer, *size, flags, (struct sockaddr*)&to, sizeof(to) );
 
     if(*size < 0)
     {
@@ -385,10 +435,16 @@ C_RESULT vp_com_read_socket(vp_com_socket_t* socket, int8_t* buffer, int32_t* si
   C_RESULT res;
   int s = (int) socket->priv;
 
+  int flags = 0;
+  if (VP_COM_DONTWAIT == socket->block)
+    flags |= MSG_DONTWAIT;
+  else if (VP_COM_WAITALL == socket->block)
+    flags |= MSG_WAITALL;
+
   if(s >= 0)
   {
     res = VP_COM_OK;
-    *size = read(s, buffer, *size);
+    *size = recv(s, buffer, *size, flags);
     if(*size < 0)
     {
       if( errno == EAGAIN )
@@ -414,10 +470,16 @@ C_RESULT vp_com_write_socket(vp_com_socket_t* socket, const int8_t* buffer, int3
   C_RESULT res;
   int s = (int) socket->priv;
 
+  int flags = 0;
+  if (VP_COM_DONTWAIT == socket->block)
+    flags |= MSG_DONTWAIT;
+  else if (VP_COM_WAITALL == socket->block)
+    flags |= MSG_WAITALL;
+
   if(s >= 0)
   {
     res = VP_COM_OK;
-    *size = write(s, buffer, *size);
+    *size = send(s, buffer, *size, flags);
     if(*size < 0)
     {
       if( errno == EAGAIN )

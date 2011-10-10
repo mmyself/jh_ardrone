@@ -6,10 +6,9 @@
 ////////////////////////////////////////////
 // Configuration for ARM Platforms
 ////////////////////////////////////////////
-
 #if TARGET_CPU_ARM == 1
 // IPhone
-#ifdef TARGET_OS_IPHONE
+#if defined (USE_ANDROID) || defined (TARGET_OS_IPHONE)
 
 #include "arm11/video_config.h"
 #endif // TARGET_OS_IPHONE

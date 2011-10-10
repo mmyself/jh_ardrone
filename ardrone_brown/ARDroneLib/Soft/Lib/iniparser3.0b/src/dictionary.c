@@ -287,6 +287,7 @@ dictionary_value* dictionary_set(dictionary * d, const char * key, char * val, i
   d->values[i].type = type;
   d->values[i].callback = NULL;
   d->values[i].rw = 0;
+  d->values[i].scope = -1;
   d->values[i].ptr  = ptr;
   d->hash[i]        = hash;
   d->n ++ ;

@@ -1,5 +1,5 @@
 /**
- *  \file     ardrone_config.h
+ *  \file     ardrone_common_config.h
  *  \brief    Ardrone Specific data for configuration
  *  \author   Sylvain Gaeremynck <sylvain.gaeremynck@parrot.com>
  *  \version  1.0

@@ -13,7 +13,7 @@ ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_PMODE_EXE,         "AT*PMODE=%d,%d\r",       
 // old school
 ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_MISC_EXE,          "AT*MISC=%d,%d,%d,%d,%d\r",                      0, at_misc_exe,           3 )
 // gains
-ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_GAIN_EXE,          "AT*GAIN=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\r", 0, at_gain_exe,           3 )
+ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_GAIN_EXE,          "AT*GAIN=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\r", 0, at_gain_exe,           3 )
 ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_ANIM_EXE,          "AT*ANIM=%d,%d,%d\r",                          0, at_anim_exe,         3 )
 // vision params
 ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_VISP_EXE,          "AT*VISP=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\r",       0, at_visp_exe,           3 )
@@ -36,6 +36,8 @@ ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_PCMD_EXE,       	  "AT*PCMD=%d,%d,%d,%d,%d,%d
 // sends Radiocommand values for all 4 axis.
 ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_CONFIG_EXE,        "AT*CONFIG=%d,\"%s\",\"%s\"\r",                  0, at_toy_configuration_exe, 3)
 // control command
+ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_CONFIG_IDS,        "AT*CONFIG_IDS=%d,\"%s\",\"%s\",\"%s\"\r",       0, at_toy_configuration_ids, 4)
+// control command
 ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_CTRL_EXE,          "AT*CTRL=%d,%d,%d\r",                            0, at_control_exe,        3)
 // led animation command
 ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_LED_EXE,           "AT*LED=%d,%d,%d,%d\r",                          0, at_led_animation_exe,  3)
@@ -45,6 +47,9 @@ ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_RESET_COM_WATCHDOG,"AT*COMWDG=%d\r",         
 ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_PWM_EXE,           "AT*PWM=%d,%d,%d,%d,%d\r",                       0, at_pwm,                3)
 
 ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_AUTONOMOUS_FLIGHT_EXE, "AT*AFLIGHT=%d,%d\r",                        0, at_autonomous_flight_exe,  3 )
+
+// Vicon information
+ATCODEC_DEFINE_AT_CMD(AT_MSG_ATCMD_VICON_EXE, 		   "AT*VICON=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\r",  0, at_vicon_exe,  3 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

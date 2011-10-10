@@ -35,4 +35,10 @@
   #define DEBUG_PRINT_SDK(...)
 #endif
 
+#ifdef DEBUG_MODE
+  #define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+  #define DEBUG_PRINT(...)
+#endif
+
 #endif // _OS_PRINT_H_

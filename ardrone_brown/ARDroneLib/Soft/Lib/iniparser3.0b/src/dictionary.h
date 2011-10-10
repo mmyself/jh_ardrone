@@ -57,6 +57,7 @@ typedef struct _dictionary_value_ {
   void* ptr;
   void (*callback)(void); 
   char rw;
+  signed int scope; /* default scope (common,appli,user profile,session) */
 } dictionary_value;
 
 /*-------------------------------------------------------------------------*/

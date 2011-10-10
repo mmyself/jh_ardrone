@@ -14,6 +14,7 @@
 #ifndef _VP_STAGES_IO_FILE_H_
 #define _VP_STAGES_IO_FILE_H_
 
+
 /**
  * @defgroup VP_SDK
  * @{ */
@@ -37,7 +38,7 @@ typedef struct _vp_stages_input_file_config_
   char *name;
   FILE *f;
   uint32_t buffer_size;
-
+  bool_t loop;
 } vp_stages_input_file_config_t;
 
 typedef struct _vp_stages_output_file_config_

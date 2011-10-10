@@ -11,9 +11,10 @@
 
 #define VIDEO_DCT_USE_INTRAM          (0)
 
-#define DEFAULT_QUANTIZATION          (6)
+//TODO: DEFAULT_QUANTIZATION has to be TABLE_QUANTIZATION for UVLC. In case of P264 the default quant should be something like 25.
+//TODO: Here TABLE_QUANTIZATION (==31) is also used as the default QP for P264. This is dirty.
+#define DEFAULT_QUANTIZATION          (TABLE_QUANTIZATION)
 
-#define USE_TABLE_QUANTIZATION
 
 /*
   Help on finding a good MAX_NUM_MACRO_BLOCKS_PER_CALL on P5P

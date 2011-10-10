@@ -107,17 +107,16 @@ C_RESULT vp_com_client_open_socket(vp_com_socket_t* server_socket, vp_com_socket
 
 void vp_com_client_receive( vp_com_socket_t *client_socket )
 {
+
   static int8_t *local_buffer=NULL ;//[VP_COM_THREAD_LOCAL_BUFFER_MAX_SIZE];
   static int8_t *new_buffer=NULL;
   static int32_t local_buffer_length=0;
 
-  struct sockaddr from;
+  struct sockaddr_in from;
   socklen_t fromlen;
   int32_t s, received,available;
 
   s = (int32_t) client_socket->priv;
-
- // printf("[STEPH] %s %s %i\n",__FILE__,__FUNCTION__,__LINE__);
 
   fromlen = sizeof(from);
 
@@ -136,7 +135,7 @@ void vp_com_client_receive( vp_com_socket_t *client_socket )
 
 
 	  /* Fetch data */
-	  received = recvfrom(s, (char*)local_buffer,local_buffer_length, 0, &from, &fromlen);
+	  received = recvfrom(s, (char*)local_buffer,local_buffer_length, 0, (struct sockaddr*)&from, &fromlen);
 
 	  /* We close the socket if an error occurred */
 	  if( received <= 0)
@@ -150,7 +149,8 @@ void vp_com_client_receive( vp_com_socket_t *client_socket )
 	   /* If some data were received, we pass them to the application.  */
 	   else if( received>=0 && client_socket->read != NULL )
 	   {
-	     client_socket->read( (void*) client_socket, local_buffer, &received, ((struct sockaddr_in*)&from)->sin_addr.s_addr );
+	     client_socket->remotePort = ntohs(from.sin_port);
+	     client_socket->read( (void*) client_socket, local_buffer, &received, (&from)->sin_addr.s_addr );
 	   }
 
 	  break; // End of TCP processing
@@ -159,7 +159,7 @@ void vp_com_client_receive( vp_com_socket_t *client_socket )
 	  /* UDP : read one packet */
 
 	  /* Query packet size */
-	  available = recvfrom(s, (char*)local_buffer,0, MSG_PEEK|MSG_TRUNC, &from, &fromlen);
+	  available = recvfrom(s, (char*)local_buffer,0, MSG_PEEK|MSG_TRUNC, (struct sockaddr*)&from, &fromlen);
 
 	  /* Resize the buffer */
 		  if(available>0){
@@ -176,7 +176,7 @@ void vp_com_client_receive( vp_com_socket_t *client_socket )
 		  else { return ; }
 
 	  /* Fetch data */
-		received = recvfrom(s, (char*)local_buffer,local_buffer_length, 0, &from, &fromlen);
+		received = recvfrom(s, (char*)local_buffer,local_buffer_length, 0, (struct sockaddr*)&from, &fromlen);
 
 
 	  /* Closes the socket if an error occurred on an UDP socket   */
@@ -192,10 +192,13 @@ void vp_com_client_receive( vp_com_socket_t *client_socket )
 	  /* If some data were received, we pass them to the application.  */
 		  else if( received>=0 && client_socket->read != NULL )
 		  {
-			client_socket->read( (void*) client_socket, local_buffer, &received, ((struct sockaddr_in*)&from)->sin_addr.s_addr );
+            client_socket->remotePort = ntohs(from.sin_port);
+            client_socket->read( (void*) client_socket, local_buffer, &received, (&from)->sin_addr.s_addr );
 		  }
 
 	  break;  // End of UDP processing
+
+  default: break;
 
   }
 

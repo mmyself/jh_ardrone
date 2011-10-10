@@ -2,6 +2,7 @@
 
 #include <VLIB/Platform/video_utils.h>
 #include <VLIB/video_picture.h>
+#include <VP_Os/vp_os_malloc.h>
 
 #ifndef HAS_VIDEO_BLOCKLINE_TO_MACRO_BLOCKS
 
@@ -244,26 +245,26 @@ C_RESULT video_blockline_from_macro_blocks_yuv420(video_picture_context_t* ctx, 
 static inline int32_t saturate8(int32_t x)
 {
 	usat(x, 7, 8);
-	
+
 	return x;
 }
 
 static inline uint32_t saturate5(int32_t x)
 {
 	usat(x, 5, 11);
-	
+
 	return x;
 }
 
 static inline uint32_t saturate6(int32_t x)
 {
 	usat(x, 6, 10);
-	
+
 	return x;
 }
 
 #else
- 
+
 // To make sure that you are bounding your inputs in the range of 0 & 255
 
 static inline int32_t saturate8(int32_t x)
@@ -302,6 +303,7 @@ static inline uint16_t saturate6(int32_t x)
   return x > 0x3F ? 0x3F : x;
 }
 #endif
+
 
 static C_RESULT video_blockline_from_macro_blocks_rgb565(video_picture_context_t* ctx, int16_t* src, int32_t num_macro_blocks)
 {
@@ -544,3 +546,177 @@ static C_RESULT video_blockline_from_macro_blocks_rgb565(video_picture_context_t
   return C_OK;
 }
 
+
+
+// Transform a blockline YUV 4:2:0 in picture of specified format
+static C_RESULT video_blockline_from_blockline_yuv420(video_picture_context_t* ctx, video_picture_context_t* src, int32_t num_macro_blocks);
+static C_RESULT video_blockline_from_blockline_rgb565(video_picture_context_t* ctx, video_picture_context_t* src, int32_t num_macro_blocks);
+
+C_RESULT video_blockline_from_blockline(video_picture_context_t* ctx, video_picture_context_t* src, int32_t num_macro_blocks, enum PixelFormat format)
+{
+  C_RESULT res;
+
+  switch(format)
+  {
+    case PIX_FMT_YUV420P:
+      res = video_blockline_from_blockline_yuv420(ctx, src, num_macro_blocks);
+      break;
+    case PIX_FMT_RGB565:
+      res = video_blockline_from_blockline_rgb565(ctx, src, num_macro_blocks);
+      break;
+
+    default:
+      PRINT("In file %s, in function %s, format %d not supported\n", __FILE__, __FUNCTION__, format);
+      res = C_FAIL;
+      break;
+  }
+
+  return res;
+}
+
+static C_RESULT video_blockline_from_blockline_yuv420(video_picture_context_t* blockline_ctx, video_picture_context_t* blockline_src, int32_t num_macro_blocks)
+{
+  uint32_t line;
+  uint8_t* dest;
+  uint8_t* src;
+  uint32_t copy_line_size;
+
+  // copy luma
+  copy_line_size = num_macro_blocks * MB_HEIGHT_Y;
+  dest = blockline_ctx->y_src;
+  src  = blockline_src->y_src;
+  line = MB_HEIGHT_Y;
+  while (line--)
+  {
+    vp_os_memcpy(dest,src,copy_line_size);
+    dest += blockline_ctx->y_woffset;
+    src  += blockline_src->y_woffset;
+  }
+
+  // copy cb
+  copy_line_size = num_macro_blocks * MB_HEIGHT_C;
+  dest = blockline_ctx->cb_src;
+  src  = blockline_src->cb_src;
+  line = MB_HEIGHT_C;
+  while (line--)
+  {
+    vp_os_memcpy(dest,src,copy_line_size);
+    dest += blockline_ctx->c_woffset;
+    src  += blockline_src->c_woffset;
+  }
+
+  // copy cr
+  copy_line_size = num_macro_blocks * MB_HEIGHT_C;
+  dest = blockline_ctx->cr_src;
+  src  = blockline_src->cr_src;
+  line = MB_HEIGHT_C;
+  while (line--)
+  {
+    vp_os_memcpy(dest,src,copy_line_size);
+    dest += blockline_ctx->c_woffset;
+    src  += blockline_src->c_woffset;
+  }
+
+  return C_OK;
+}
+
+
+static C_RESULT
+video_blockline_from_blockline_rgb565(video_picture_context_t* ctx,
+									  video_picture_context_t* src, int32_t num_macro_blocks)
+{
+	uint32_t y_up_read, y_down_read, cr_current, cb_current;
+	int32_t u, v, vr, ug, vg, ub, r, g, b;
+	uint8_t *y_buf_up, *y_buf_down, *cr_buf, *cb_buf;
+	uint16_t *dst_up, *dst_down;
+	int32_t line_size,dest_y_woffset;
+	
+	// Control variables
+	uint32_t pixel,line;
+	
+	// In ptrs
+	y_buf_up = src->y_src;
+	y_buf_down = y_buf_up + src->y_woffset;
+	
+	cb_buf = src->cb_src;
+	cr_buf = src->cr_src;
+	
+	// Out ptrs are 16 bits
+	dest_y_woffset = ctx->y_woffset / 2;
+	
+	dst_up = (uint16_t*) ctx->y_src;
+	dst_down = dst_up + dest_y_woffset;
+	
+	// We compute two pixels at a time
+	line_size = MB_WIDTH_Y*num_macro_blocks; 
+	
+	pixel = line_size>>1;
+	line = MB_WIDTH_Y>>1;
+	
+	while (line)
+	{
+		// load cb cr
+		cb_current = *cb_buf++;
+		cr_current = *cr_buf++;
+		
+		u = cb_current - 128;
+		ug = 88 * u;
+		ub = 454 * u;
+		v = cr_current - 128;
+		vg = 183 * v;
+		vr = 359 * v;
+		
+		// compute pixel(0,0)
+		y_up_read = (*y_buf_up++) << 8;
+		r = saturate5((y_up_read + vr));
+		g = saturate6((y_up_read - ug - vg));
+		b = saturate5((y_up_read + ub));
+		
+		*dst_up++ = MAKE_RGBA_565(r, g, b);
+		
+		// compute pixel(1,0)
+		y_up_read = (*y_buf_up++) << 8;
+		
+		r = saturate5((y_up_read + vr));
+		g = saturate6((y_up_read - ug - vg));
+		b = saturate5((y_up_read + ub));
+		
+		*dst_up++ = MAKE_RGBA_565(r, g, b);
+		
+		// compute pixel (0,1)
+		y_down_read = (*y_buf_down++) << 8;
+		
+		r = saturate5((y_down_read + vr));
+		g = saturate6((y_down_read - ug - vg));
+		b = saturate5((y_down_read + ub));
+		
+		*dst_down++ = MAKE_RGBA_565(r, g, b);
+		
+		// compute pixel (1,1)
+		y_down_read = (*y_buf_down++) << 8;
+		
+		r = saturate5((y_down_read + vr));
+		g = saturate6((y_down_read - ug - vg));
+		b = saturate5((y_down_read + ub));
+		
+		*dst_down++ = MAKE_RGBA_565(r, g, b);
+		
+		pixel--;
+		if (pixel == 0)
+		{
+			// jump to next line
+			y_buf_up += 2*src->y_woffset - line_size;
+			y_buf_down += 2*src->y_woffset - line_size;
+			cb_buf += src->c_woffset - (line_size>>1);
+			cr_buf += src->c_woffset - (line_size>>1);
+			
+			dst_up += 2*dest_y_woffset - line_size;
+			dst_down += 2*dest_y_woffset - line_size;
+			
+			pixel = line_size>>1;
+			line--;
+		}
+	}
+	
+	return C_OK;
+}

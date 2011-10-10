@@ -63,9 +63,13 @@ typedef enum {
   DCT_DMA_INCR16  = 3,                    //!< 64 bytes DMA burst
 } DCT_DMA_BURST_MODE;
 
+C_RESULT video_dct_p6_init(void);
+C_RESULT video_dct_p6_close(void);
+
 C_RESULT video_dct_p6p_init(void);
 
-int16_t* video_fdct_compute(int16_t* in, int16_t* out, int32_t num_macro_blocks);
+
+int16_t* video_fdct_quant_compute(int16_t* in, int16_t* out, int32_t num_macro_blocks,int32_t quant);
 //int16_t* video_idct_compute(int16_t* in, int16_t* out, int32_t num_macro_blocks);
 
 #endif // ! _VIDEO_DCT_P6P_H_

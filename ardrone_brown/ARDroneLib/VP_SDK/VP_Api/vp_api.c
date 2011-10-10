@@ -84,11 +84,12 @@ vp_api_open(vp_api_io_pipeline_t *pipeline, PIPELINE_HANDLE *handle)
 		}
   }
 
-  pipeline->fifo.pbase   = (int32_t *) vp_os_malloc(VP_API_PIPELINE_FIFO_SIZE * sizeof(int8_t));
+  pipeline->fifo.pbase   = (char *) vp_os_malloc(VP_API_PIPELINE_FIFO_SIZE);
   pipeline->fifo.pget    = pipeline->fifo.pbase;
   pipeline->fifo.ppost   = pipeline->fifo.pbase;
   pipeline->fifo.nb_waiting = 0;
   vp_os_memset(pipeline->fifo.pbase, 0, VP_API_PIPELINE_FIFO_SIZE);
+  vp_os_mutex_init(&pipeline->fifo.mutex);
 
   if( VP_SUCCEEDED(res) )
   {
@@ -140,7 +141,10 @@ vp_api_run(vp_api_io_pipeline_t *pipeline, vp_api_io_data_t *out_data)
     }
   }
 
-  *out_data = currentStage->data;
+  if(currentStage!=NULL)
+	  *out_data = currentStage->data;
+  else
+	  res = VP_FAILURE;
 
   return res;
 }

@@ -28,6 +28,7 @@ extern "C" {
 #endif
 
 #include <ardrone_tool/ardrone_tool.h>
+#include <ardrone_tool/ardrone_tool_configuration.h>  
 #include <ardrone_tool/Com/config_com.h>
 #include <ardrone_tool/UI/ardrone_input.h>
 #include <ardrone_tool/Video/video_com_stage.h>
@@ -36,5 +37,6 @@ extern "C" {
 }
 
 extern navdata_demo_t navdata;
+extern navdata_time_t arnavtime;
 
 #endif

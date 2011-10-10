@@ -4,7 +4,7 @@
 #include <VP_Os/vp_os_types.h>
 #include <VLIB/video_macroblock.h>
 
-#define MAKE_START_CODE(gob)      ( 0x000020 | (gob) )
+#define MAKE_START_CODE(gob)      ( UVLC_CODEC | (gob) )
 #define PICTURE_START_CODE        MAKE_START_CODE(0)
 #define PICTURE_END_CODE          MAKE_START_CODE(0x1F)
 

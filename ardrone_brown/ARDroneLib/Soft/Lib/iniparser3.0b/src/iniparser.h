@@ -94,6 +94,8 @@ char * iniparser_getsecname(dictionary * d, int n);
 /*--------------------------------------------------------------------------*/
 
 void iniparser_dump_ini(dictionary * d, FILE * f);
+void iniparser_dump_ini_a3(dictionary * d, FILE * f , int flag_dump_k_shallows);
+void iniparser_dump_ini_a4(dictionary * d, FILE * f , int flag_dump_k_shallows, int update_values_from_memory);
 
 /*-------------------------------------------------------------------------*/
 /**
@@ -109,12 +111,12 @@ void iniparser_dump_ini(dictionary * d, FILE * f);
  */
 /*--------------------------------------------------------------------------*/
 
-void iniparser_dump(dictionary * d, FILE * f);
+void iniparser_dump(dictionary * d);
 
 /*-------------------------------------------------------------------------*/
 /**
   @brief    Initialise a key with a type and a pointer to the value.
-  @param    d     Dictionary to dump.
+  @param    d     Dictionary to fill.
   @param    key   Key string to look for
   @param    int   type associated with this key
   @param    void* pointer to a valid data of the declared type
@@ -129,6 +131,7 @@ void iniparser_dump(dictionary * d, FILE * f);
 /*--------------------------------------------------------------------------*/
 
 int iniparser_alias(dictionary * d, const char* kkey, int type, void* ptr,void (*cb)(void),char rw);
+int iniparser_alias_ex(dictionary * d, const char* kkey, int type, void* ptr, void (*cb)(void), char rw,int scope);
 
 /*-------------------------------------------------------------------------*/
 /**
@@ -239,7 +242,8 @@ int iniparser_getboolean(dictionary * d, const char * key, int notfound);
   It is Ok to set val to NULL.
  */
 /*--------------------------------------------------------------------------*/
-int iniparser_setstring(dictionary * ini, char * entry, char * val);
+int iniparser_setstring(dictionary * ini, const char * entry, const char * val);
+int iniparser_setstring_a4(dictionary * ini, const char * entry, const char * val , int trigger_callback);
 
 /*-------------------------------------------------------------------------*/
 /**
@@ -313,5 +317,9 @@ dictionary * iniparser_load(FILE* fp, dictionary * dict);
  */
 /*--------------------------------------------------------------------------*/
 void iniparser_freedict(dictionary * d);
+
+void iniparser_vals2ptrs(dictionary * d , int scope);
+void iniparser_ptrs2vals(dictionary * d , int scope);
+
 
 #endif

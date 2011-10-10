@@ -91,9 +91,16 @@ C_RESULT vp_api_post_message(DEST_HANDLE dest, PIPELINE_MSG msg_id, void *callba
 
   vp_api_io_pipeline_t *pipeline = (vp_api_io_pipeline_t *) pipelines[dest.pipeline];
 
+  /* Do not send the message if the pipeline does not exist yet
+	This happens when calling the callback function of the 'video_channel' configuration
+    value at drone startup. */
+  if (pipeline==NULL) { return VP_FAILURE; }
+
   VP_OS_ASSERT(pipeline->fifo.nb_waiting >= 0);
 
-  if((pipeline->fifo.ppost + sizeof(PIPELINE_MSG) + sizeof(void *) + sizeof(void *)) >= (pipeline->fifo.pbase + VP_API_PIPELINE_FIFO_SIZE))
+  vp_os_mutex_lock(&pipeline->fifo.mutex);
+
+  if((pipeline->fifo.ppost + sizeof(DEST_HANDLE) + sizeof(PIPELINE_MSG) + sizeof(void *) + sizeof(void *)) >= (pipeline->fifo.pbase + VP_API_PIPELINE_FIFO_SIZE))
     pipeline->fifo.ppost = pipeline->fifo.pbase;
 
   vp_os_memcpy(pipeline->fifo.ppost, &dest, sizeof(DEST_HANDLE));
@@ -117,6 +124,8 @@ C_RESULT vp_api_post_message(DEST_HANDLE dest, PIPELINE_MSG msg_id, void *callba
 
   pipeline->fifo.nb_waiting ++;
 
+  vp_os_mutex_unlock(&pipeline->fifo.mutex);
+
   return res;
 }
 
@@ -126,6 +135,8 @@ static C_RESULT vp_api_get_message(vp_api_io_pipeline_t *pipeline, DEST_HANDLE *
   C_RESULT res = VP_SUCCESS;
 
   VP_OS_ASSERT(pipeline->fifo.nb_waiting > 0);
+
+  vp_os_mutex_lock(&pipeline->fifo.mutex);
 
   if((pipeline->fifo.pget + sizeof(PIPELINE_MSG) + sizeof(void *) + sizeof(void *)) >= (pipeline->fifo.pbase + VP_API_PIPELINE_FIFO_SIZE))
     pipeline->fifo.pget = pipeline->fifo.pbase;
@@ -147,6 +158,8 @@ static C_RESULT vp_api_get_message(vp_api_io_pipeline_t *pipeline, DEST_HANDLE *
   pipeline->fifo.pget += sizeof(void *);
 
   pipeline->fifo.nb_waiting --;
+
+  vp_os_mutex_unlock(&pipeline->fifo.mutex);
 
   return res;
 }

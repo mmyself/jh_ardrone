@@ -18,6 +18,12 @@ extern float32_t wiimote_ax, wiimote_ay, wiimote_az;
 #endif
 
 extern char wifi_ardrone_ip[];
+extern char app_id[];
+extern char app_name[];
+extern char usr_id[];
+extern char usr_name[];
+extern char ses_id[];
+extern char ses_name[];
 
 typedef struct _ardrone_tool_configure_data_t {
   char* var;
@@ -45,7 +51,7 @@ extern int custom_main(int argc, char **argv) WEAK;
 
 // This is implemented by the library
 #ifdef NO_ARDRONE_MAINLOOP
-C_RESULT ardrone_tool_init( const char* ardrone_ip, size_t n, AT_CODEC_FUNCTIONS_PTRS *ptrs);
+C_RESULT ardrone_tool_init( const char* ardrone_ip, size_t n, AT_CODEC_FUNCTIONS_PTRS *ptrs, const char *appname, const char *usrname);
 #else
 C_RESULT ardrone_tool_init(int argc, char **argv);
 #endif

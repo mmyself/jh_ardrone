@@ -5,6 +5,7 @@ C_RESULT video_quantizer_init( video_controller_t* controller )
 {
   // Init quantizer's value
   // This value is between 1 and 31
+  // TODO: this is not true in case of P264 but P264 don't use the video_quantizer functions. To be fixed
 
   int32_t quant = controller->quant;
 
@@ -100,7 +101,7 @@ C_RESULT video_quantize( video_controller_t* controller, video_macroblock_t* mac
       RTMON_USTART(VIDEO_VLIB_DOQUANTIZE);
       if( controller->picture_type == VIDEO_PICTURE_INTRA ) // intra
       {
-        y0 = do_quantize_intra_mb(y0, controller->invQp, &macroblock->num_coeff_y0);
+        y0 = do_quantize_intra_mb(y0, controller->quant, &macroblock->num_coeff_y0);
       }
       else
       {
@@ -171,42 +172,33 @@ C_RESULT video_unquantize( video_controller_t* controller, video_macroblock_t* m
 }
 
 #ifndef HAS_DO_QUANTIZE_INTRA_MB
-int16_t* do_quantize_intra_mb(int16_t* ptr, int32_t invQuant, int32_t* last_ptr)
+int16_t* do_quantize_intra_mb(int16_t* ptr, int32_t quant, int32_t* last_ptr)
 {
   int32_t i, num_coeff;
-  int32_t coeff, sign, last;
+  int32_t coeff, last;
+  int32_t j;
+  if (quant == TABLE_QUANTIZATION)
+        quant = TBL_QUANT_QUALITY;
 
   for( i = 6; i > 0; i-- )
   {
-    // LEVEL = (COF + 4)/(2*4) see III.3.2.3
-
-    coeff = (*ptr + 4) >> 3;
-    if( coeff == 0 )
-      coeff = 1;
-
-    *ptr++ = coeff;
-
+    coeff = *ptr;
     last = 1;
     num_coeff = MCU_BLOCK_SIZE-1;
+    coeff = coeff / (QUANT_I(0,quant));
+    if( coeff == 0 )
+      coeff = 1;
+    *ptr = coeff;
+    ptr++;
+    j = 1;
 
     while( num_coeff > 0 )
     {
       coeff = *ptr;
-
       if( coeff != 0 )
       {
-        // |LEVEL| = |COF| / (2 * QUANT) see III.3.2.2
-
-        sign = coeff < 0;
-
-        if( sign )
-          coeff = -coeff;
-
-        coeff *= invQuant;
-        coeff >>= 16;
-
-        if( sign )
-          coeff = -coeff;
+        // TODO : division can be slow, a better implementation would consist in building an invQuant(j) table [2^16/QUANT_I(j,quant)] and computing (coeff*invQuant(j))>>16 instead of coeff / (QUANT_I(j,quant))
+        coeff = coeff / (QUANT_I(j,quant));
 
         if( coeff != 0 )
         {
@@ -215,9 +207,9 @@ int16_t* do_quantize_intra_mb(int16_t* ptr, int32_t invQuant, int32_t* last_ptr)
 
         *ptr = coeff;
       }
-
       ptr++;
       num_coeff--;
+      j++;
     }
 
     *last_ptr++ = last;
@@ -278,55 +270,25 @@ int16_t* do_quantize_inter_mb(int16_t* ptr, int32_t quant, int32_t invQuant, int
 C_RESULT do_unquantize(int16_t* ptr, int32_t picture_type, int32_t quant, int32_t num_coeff)
 {
   int32_t coeff;
+  uint32_t i=0;
 
   if (quant == TABLE_QUANTIZATION)
+	quant = TBL_QUANT_QUALITY; // TABLE_QUANTIZATION is an old mode and is equivalent to a QUANT_I(i,2) quantization table
+
+  // table quantization mode
+  i=0;
+  do
   {
-	// table quantization mode
-	int16_t* p_iquant_table = (int16_t*)(&iquant_tab[0]);
-	do
+	coeff = *ptr;
+	if( coeff )
 	{
-	  coeff = *ptr;
-      if( coeff )
-      {
-        coeff *= (*p_iquant_table);
-
-        *ptr = coeff;
-        num_coeff--;
-      }
-      p_iquant_table++;
-      ptr ++;
-    } while( num_coeff > 0 );
-  }
-  else
-  {
-    // constant quantization mode
-    if( picture_type == VIDEO_PICTURE_INTRA ) // intra
-    {
-      coeff = *ptr;
-      *ptr  = (coeff << 3); // see III.3.2
-
-      ptr ++;
-      num_coeff --;
-    }
-
-    while( num_coeff > 0 )
-    {
-      coeff = *ptr;
-
-      if( coeff )
-      {
-        coeff = quant*( 2*coeff + 1 );
-        if( quant & 1 )
-          coeff -= 1;
-
-        *ptr = coeff;
-
-        num_coeff--;
-      }
-
-      ptr ++;
-    }
-  }
+	  coeff *= QUANT_I (i,quant);
+	  *ptr = coeff;
+	  num_coeff--;
+	}
+	i++;
+	ptr++;
+  } while( num_coeff > 0 );
 
   return C_OK;
 }

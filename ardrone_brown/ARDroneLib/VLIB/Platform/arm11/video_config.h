@@ -15,3 +15,4 @@
 #endif // TARGET_CPU_ARM
 
 #endif // _VIDEO_CONFIG_ARM11_H_
+

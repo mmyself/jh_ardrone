@@ -23,4 +23,8 @@ C_RESULT video_blockline_to_macro_blocks(video_picture_context_t* ctx, int16_t* 
 // Transform macro blocks in picture
 C_RESULT video_blockline_from_macro_blocks(video_picture_context_t* ctx, int16_t* macro_blocks, int32_t num_macro_blocks, enum PixelFormat format);
 
+// Transform macro blocks in picture
+C_RESULT video_blockline_from_blockline(video_picture_context_t* ctx, video_picture_context_t* src, int32_t num_macro_blocks, enum PixelFormat format);
+
+
 #endif // _VIDEO_PICTURE_H_

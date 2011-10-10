@@ -586,23 +586,29 @@ valist_ATcodec_Queue_Message_valist_Tree(ATcodec_Tree_t *tree, AT_CODEC_MSG_ID i
   ATcodec_Message_Data_t *data = (ATcodec_Message_Data_t *)ATcodec_Buffer_getElement(&tree->leaves, node->data);
   char *total_str = (char *)ATcodec_Buffer_getElement(&tree->strs, data->total_str);
   ATcodec_Memory_t msg, fmt;
+	char buffer[INTERNAL_BUFFER_SIZE];
 	
-  if(!atcodec_lib_init_ok)
+	if(!atcodec_lib_init_ok)
     return ATCODEC_FALSE;
 
+  
   vp_os_mutex_lock(&ATcodec_cond_mutex);
 
-  ATcodec_Memory_Init(&msg, (char*)&ATcodec_Message_Buffer[ATcodec_Message_len], INTERNAL_BUFFER_SIZE, 1, NULL, NULL);
+  ATcodec_Memory_Init(&msg, (char*)&buffer[0], INTERNAL_BUFFER_SIZE, 1, NULL, NULL);
   ATcodec_Memory_Init(&fmt, total_str, 0, 1, NULL, NULL);
-
+		
   if((res = vp_atcodec_sprintf_valist(&msg, &len, &fmt, va)) !=  ATCODEC_TRUE)
     {
-      vp_os_mutex_unlock(&ATcodec_cond_mutex);
+		vp_os_mutex_unlock(&ATcodec_cond_mutex);
       va_end(*va);
       return res;
     }
 
-  ATcodec_Message_len += len;
+	if(ATcodec_Message_len + len < INTERNAL_BUFFER_SIZE)
+	{
+		memcpy(&ATcodec_Message_Buffer[ATcodec_Message_len], &buffer[0], len);
+		ATcodec_Message_len += len;
+	}
 	
   //vp_os_cond_signal(&ATcodec_wait_cond);
   vp_os_mutex_unlock(&ATcodec_cond_mutex);
@@ -665,11 +671,11 @@ ATcodec_Queue_Message_params_Tree(ATcodec_Tree_t *tree, AT_CODEC_MSG_ID id, ATco
   ATcodec_Message_Data_t *data = (ATcodec_Message_Data_t *)ATcodec_Buffer_getElement(&tree->leaves, node->data);
   char *total_str = (char *)ATcodec_Buffer_getElement(&tree->strs, data->total_str);
   ATcodec_Memory_t msg, fmt;
-	
+	char buffer[INTERNAL_BUFFER_SIZE];
   if(!atcodec_lib_init_ok)
     return ATCODEC_FALSE;
 	
-  ATcodec_Memory_Init(&msg, (char*)&ATcodec_Message_Buffer[ATcodec_Message_len], INTERNAL_BUFFER_SIZE, 1, NULL, NULL);
+  ATcodec_Memory_Init(&msg, (char*)&buffer[0], INTERNAL_BUFFER_SIZE, 1, NULL, NULL);
   ATcodec_Memory_Init(&fmt, total_str, 0, 1, NULL, NULL);
 	
   params->current = (char *)params->start;
@@ -679,7 +685,12 @@ ATcodec_Queue_Message_params_Tree(ATcodec_Tree_t *tree, AT_CODEC_MSG_ID id, ATco
       return res;
     }
 	
-  ATcodec_Message_len += len;
+
+	if(ATcodec_Message_len + len < INTERNAL_BUFFER_SIZE)
+	{
+		memcpy(&ATcodec_Message_Buffer[ATcodec_Message_len], &buffer[0], len);
+		ATcodec_Message_len += len;
+	}
 	
   //vp_os_cond_signal(&ATcodec_wait_cond);
   vp_os_mutex_unlock(&ATcodec_cond_mutex);
@@ -697,7 +708,10 @@ ATcodec_Send_Messages()
     return ATCODEC_FALSE;
 	
   vp_os_mutex_lock(&ATcodec_cond_mutex);
-  //printf("ATcodec_Send_Messages : buf=%s\n", &ATcodec_Message_Buffer[0]);	
+ 
+  if(ATcodec_Message_len > INTERNAL_BUFFER_SIZE)
+	  printf("ATcodec_Send_Messages : buf=%s, len=%d\n", &ATcodec_Message_Buffer[0], ATcodec_Message_len);
+	
   if(ATcodec_Message_len && func_ptrs.write((int8_t*)&ATcodec_Message_Buffer[0], (int32_t*)&ATcodec_Message_len) != AT_CODEC_WRITE_OK)
     res = ATCODEC_FALSE;
 	

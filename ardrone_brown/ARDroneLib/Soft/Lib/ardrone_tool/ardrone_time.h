@@ -20,5 +20,6 @@ C_RESULT ardrone_timer_update(ardrone_timer_t* timer);
 int32_t ardrone_timer_elapsed_ms(ardrone_timer_t* timer);
 int32_t ardrone_timer_elapsed_us(ardrone_timer_t* timer);
 int32_t ardrone_timer_delta_ms(ardrone_timer_t* timer);
+int32_t ardrone_timer_delta_us(ardrone_timer_t* timer);
 
 #endif // _ARDRONE_TIME_H_

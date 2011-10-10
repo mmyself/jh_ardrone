@@ -4,7 +4,7 @@
 #include <VP_Os/vp_os_types.h>
 #include <VP_Api/vp_api_thread_helper.h>
 
-#define ARDRONE_CONTROL_MAX_NUM_EVENTS_IN_QUEUE   16
+#define ARDRONE_CONTROL_MAX_NUM_EVENTS_IN_QUEUE   32
 
 typedef enum _ardrone_control_event_status_t {
   ARDRONE_CONTROL_EVENT_IDLE            = 0x0000,

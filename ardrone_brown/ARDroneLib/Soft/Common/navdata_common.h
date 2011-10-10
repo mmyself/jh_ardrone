@@ -7,6 +7,7 @@
 #ifndef _NAVDATA_COMMON_H_
 #define _NAVDATA_COMMON_H_
 
+/*------------------------------------------ NAVDATA STRUCTURES DECLARATIONS ---------------------------------------------------------------*/
 
 #include <config.h>
 #include <vision_common.h>
@@ -68,11 +69,11 @@ typedef struct _velocities_t {
  *  \brief   Numerator of default integral gain for Euler Angle control loops
  */
 
-#define CTRL_DEFAULT_NUM_PQ_KP_NO_SHELL /*30000  26000 */ 20000
+#define CTRL_DEFAULT_NUM_PQ_KP_NO_SHELL /*30000  26000 */ 40000
 #define CTRL_DEFAULT_NUM_EA_KP_NO_SHELL /*7000  9000  7000 */ 8000
 #define CTRL_DEFAULT_NUM_EA_KI_NO_SHELL /*4000  7000 6000 */ 7000
 
-#define CTRL_DEFAULT_NUM_PQ_KP_SHELL /*30000 23000*/ 20000
+#define CTRL_DEFAULT_NUM_PQ_KP_SHELL /*30000 23000*/ 40000
 #define CTRL_DEFAULT_NUM_EA_KP_SHELL /*9000 10000*/  9000
 #define CTRL_DEFAULT_NUM_EA_KI_SHELL /*5000 9000*/   8000
 
@@ -80,7 +81,7 @@ typedef struct _velocities_t {
  *  \var     CTRL_DEFAULT_NUM_H_R
  *  \brief   Numerator of default proportionnal gain for yaw (r) angular rate control loop
  */
-#define CTRL_DEFAULT_NUM_R_KP 100000
+#define CTRL_DEFAULT_NUM_R_KP 200000
 
 /**
  *  \var     CTRL_DEFAULT_NUM_R_KI
@@ -104,25 +105,31 @@ typedef struct _velocities_t {
  *  \var     CTRL_DEFAULT_NUM_ALT_KP
  *  \brief   Numerator of default proportionnal gain for Altitude control loop
  */
+#ifdef NEW_ALT_FUSION
+#define CTRL_DEFAULT_NUM_ALT_KP 4000
+#else
 #define CTRL_DEFAULT_NUM_ALT_KP 2000
-
+#endif
 /**
  *  \var     CTRL_DEFAULT_NUM_ALT_KI
  *  \brief   Numerator of default integral gain for Altitude control loop
  */
-#define CTRL_DEFAULT_NUM_ALT_KI 400
-
+#ifdef NEW_ALT_FUSION
+	#define CTRL_DEFAULT_NUM_ALT_KI 2000
+#else
+	#define CTRL_DEFAULT_NUM_ALT_KI 400
+#endif
 /**
  *  \var     CTRL_DEFAULT_NUM_ALT_KD
  *  \brief   Numerator of default derivative gain for Altitude control loop
  */
-#define CTRL_DEFAULT_NUM_VZ_KP 100
+#define CTRL_DEFAULT_NUM_VZ_KP 200
 
 /**
  *  \var     CTRL_DEFAULT_NUM_ALT_TD
  *  \brief   Numerator of default derivative time constant gain for Altitude control loop
  */
-#define CTRL_DEFAULT_NUM_VZ_KI 50
+#define CTRL_DEFAULT_NUM_VZ_KI 100
 
 /**
  *  \var     CTRL_DEFAULT_DEN_ALT
@@ -138,11 +145,26 @@ typedef struct _velocities_t {
 #define CTRL_DEFAULT_NUM_HOVER_KP_NO_SHELL /*6000 12000 5000*/ 7000
 
 /**
+ *  \var     CTRL_DEFAULT_NUM_HOVER_KP
+ *  \brief   Numerator of default proportionnal gain for hovering beacon control loop
+ */
+#define CTRL_DEFAULT_NUM_HOVER_B_KP_SHELL 1200
+#define CTRL_DEFAULT_NUM_HOVER_B_KP_NO_SHELL 1200
+
+/**
  *  \var     CTRL_DEFAULT_NUM_HOVER_KI
  *  \brief   Numerator of default integral gain for hovering control loop
  */
 #define CTRL_DEFAULT_NUM_HOVER_KI_SHELL /*3000 10000*/ 8000
 #define CTRL_DEFAULT_NUM_HOVER_KI_NO_SHELL /*3000 8000 5000*/ 6000
+
+/**
+ *  \var     CTRL_DEFAULT_NUM_HOVER_KI
+ *  \brief   Numerator of default integral gain for hovering beacon control loop
+ */
+#define CTRL_DEFAULT_NUM_HOVER_B_KI_SHELL 500
+#define CTRL_DEFAULT_NUM_HOVER_B_KI_NO_SHELL 500
+
 /*
  *  \var     CTRL_DEFAULT_DEN_HOVER
  *  \brief   Numerator of default proportionnal gain for hovering control loop
@@ -151,7 +173,24 @@ typedef struct _velocities_t {
 
 
 /* Timeout for mayday maneuvers*/
-static const int32_t MAYDAY_TIMEOUT[9] = {1,1,1,1,1,1,5,5,1};
+static const int32_t MAYDAY_TIMEOUT[ARDRONE_NB_ANIM_MAYDAY] = {
+    1000,  // ARDRONE_ANIM_PHI_M30_DEG
+    1000,  // ARDRONE_ANIM_PHI_30_DEG
+    1000,  // ARDRONE_ANIM_THETA_M30_DEG
+    1000,  // ARDRONE_ANIM_THETA_30_DEG
+    1000,  // ARDRONE_ANIM_THETA_20DEG_YAW_200DEG
+    1000,  // ARDRONE_ANIM_THETA_20DEG_YAW_M200DEG
+    5000,  // ARDRONE_ANIM_TURNAROUND
+    5000,  // ARDRONE_ANIM_TURNAROUND_GODOWN
+    2000,  // ARDRONE_ANIM_YAW_SHAKE
+    5000,  // ARDRONE_ANIM_YAW_DANCE
+    5000,  // ARDRONE_ANIM_PHI_DANCE
+    5000,  // ARDRONE_ANIM_THETA_DANCE
+    5000,  // ARDRONE_ANIM_VZ_DANCE
+    5000,  // ARDRONE_ANIM_WAVE
+    5000,  // ARDRONE_ANIM_PHI_THETA_MIXED
+    5000,  // ARDRONE_ANIM_DOUBLE_PHI_THETA_MIXED
+};
 
 #define NAVDATA_SEQUENCE_DEFAULT  1
 
@@ -160,29 +199,27 @@ static const int32_t MAYDAY_TIMEOUT[9] = {1,1,1,1,1,1,5,5,1};
 #define NAVDATA_MAX_SIZE 2048
 #define NAVDATA_MAX_CUSTOM_TIME_SAVE 20
 
+/* !!! Warning !!! - changing the value below would break compatibility with older applications
+ * DO NOT CHANGE THIS  */
+#define NB_NAVDATA_DETECTION_RESULTS 4
+
+
+/**
+ * @brief Tags identifying navdata blocks in a Navdata UDP packet
+ * This tag is stored in the first two bytes of any navdata block (aka 'option').
+ */
+
+#define NAVDATA_OPTION_DEMO(STRUCTURE,NAME,TAG)  TAG = 0,
+#define NAVDATA_OPTION(STRUCTURE,NAME,TAG)       TAG ,
+#define NAVDATA_OPTION_CKS(STRUCTURE,NAME,TAG)   NAVDATA_NUM_TAGS, TAG = 0xFFFF
+
 typedef enum _navdata_tag_t {
-  NAVDATA_DEMO_TAG = 0,
-  NAVDATA_TIME_TAG,
-  NAVDATA_RAW_MEASURES_TAG,
-  NAVDATA_PHYS_MEASURES_TAG,
-  NAVDATA_GYROS_OFFSETS_TAG,
-  NAVDATA_EULER_ANGLES_TAG,
-  NAVDATA_REFERENCES_TAG,
-  NAVDATA_TRIMS_TAG,
-  NAVDATA_RC_REFERENCES_TAG,
-  NAVDATA_PWM_TAG,
-  NAVDATA_ALTITUDE_TAG,
-  NAVDATA_VISION_RAW_TAG,
-  NAVDATA_VISION_OF_TAG,
-  NAVDATA_VISION_TAG,
-  NAVDATA_VISION_PERF_TAG,
-  NAVDATA_TRACKERS_SEND_TAG,
-  NAVDATA_VISION_DETECT_TAG,
-  NAVDATA_WATCHDOG_TAG,
-  NAVDATA_ADC_DATA_FRAME_TAG,
-  NAVDATA_VIDEO_STREAM_TAG,
-  NAVDATA_CKS_TAG = 0xFFFF
+	#include <navdata_keys.h>
 } navdata_tag_t;
+
+#define NAVDATA_OPTION_MASK(option) ( 1 << (option) )
+#define NAVDATA_OPTION_FULL_MASK    ((1<<NAVDATA_NUM_TAGS)-1)
+
 
 typedef struct _navdata_option_t {
   uint16_t  tag;
@@ -194,28 +231,41 @@ typedef struct _navdata_option_t {
 #endif
 } navdata_option_t;
 
+
+/**
+ * @brief Navdata structure sent over the network.
+ */
 typedef struct _navdata_t {
-  uint32_t    header;
-  uint32_t    ardrone_state;
-  uint32_t    sequence;
+  uint32_t    header;			/*!< Always set to NAVDATA_HEADER */
+  uint32_t    ardrone_state;    /*!< Bit mask built from def_ardrone_state_mask_t */
+  uint32_t    sequence;         /*!< Sequence number, incremented for each sent packet */
   bool_t      vision_defined;
 
   navdata_option_t  options[1];
 }_ATTRIBUTE_PACKED_ navdata_t;
 
 
-typedef struct _navdata_demo_t {
-  uint16_t    tag;
-  uint16_t    size;
+/**
+ * All navdata options can be extended (new values AT THE END) except navdata_demo whose size must be constant across versions
+ * New navdata options may be added, but must not be sent in navdata_demo mode unless requested by navdata_options.
+ */
 
-  uint32_t    ctrl_state;             /*!< instance of #def_ardrone_state_mask_t */
+/*----------------------------------------------------------------------------*/
+/**
+ * @brief Minimal navigation data for all flights.
+ */
+typedef struct _navdata_demo_t {
+  uint16_t    tag;					  /*!< Navdata block ('option') identifier */
+  uint16_t    size;					  /*!< set this to the size of this structure */
+
+  uint32_t    ctrl_state;             /*!< Flying state (landed, flying, hovering, etc.) defined in CTRL_STATES enum. */
   uint32_t    vbat_flying_percentage; /*!< battery voltage filtered (mV) */
 
-  float32_t   theta;                  /*!< UAV's attitude */
-  float32_t   phi;                    /*!< UAV's attitude */
-  float32_t   psi;                    /*!< UAV's attitude */
+  float32_t   theta;                  /*!< UAV's pitch in milli-degrees */
+  float32_t   phi;                    /*!< UAV's roll  in milli-degrees */
+  float32_t   psi;                    /*!< UAV's yaw   in milli-degrees */
 
-  int32_t     altitude;               /*!< UAV's altitude */
+  int32_t     altitude;               /*!< UAV's altitude in centimeters */
 
   float32_t   vx;                     /*!< UAV's estimated linear velocity */
   float32_t   vy;                     /*!< UAV's estimated linear velocity */
@@ -224,18 +274,24 @@ typedef struct _navdata_demo_t {
   uint32_t    num_frames;			  /*!< streamed frame index */ // Not used -> To integrate in video stage.
 
   // Camera parameters compute by detection
-  matrix33_t  detection_camera_rot; /*!<  Deprecated ! Don't use ! */
+  matrix33_t  detection_camera_rot;   /*!<  Deprecated ! Don't use ! */
   vector31_t  detection_camera_trans; /*!<  Deprecated ! Don't use ! */
-  uint32_t	  detection_tag_index; /*!<  Deprecated ! Don't use ! */
-  uint32_t	  detection_camera_type; /*!<  Deprecated ! Don't use ! */
+  uint32_t	  detection_tag_index;    /*!<  Deprecated ! Don't use ! */
+
+  uint32_t	  detection_camera_type; /*!<  Type of tag searched in detection */
 
   // Camera parameters compute by drone
-  matrix33_t  drone_camera_rot;
-  vector31_t  drone_camera_trans;
+  matrix33_t  drone_camera_rot;		/*!<  Deprecated ! Don't use ! */
+  vector31_t  drone_camera_trans;	/*!<  Deprecated ! Don't use ! */
 }_ATTRIBUTE_PACKED_ navdata_demo_t;
 
-/// Last navdata option that *must* be included at the end of all navdata packet
-/// + 6 bytes
+
+
+/*----------------------------------------------------------------------------*/
+/**
+ * @brief Last navdata option that *must* be included at the end of all navdata packets
+ * + 6 bytes
+ */
 typedef struct _navdata_cks_t {
   uint16_t  tag;
   uint16_t  size;
@@ -245,15 +301,24 @@ typedef struct _navdata_cks_t {
 }_ATTRIBUTE_PACKED_ navdata_cks_t;
 
 
-/// + 6 bytes
+/*----------------------------------------------------------------------------*/
+/**
+ * @brief Timestamp
+ * + 6 bytes
+ */
 typedef struct _navdata_time_t {
   uint16_t  tag;
   uint16_t  size;
 
-  uint32_t  time;
+  uint32_t  time;  /*!< 32 bit value where the 11 most significant bits represents the seconds, and the 21 least significant bits are the microseconds. */
 }_ATTRIBUTE_PACKED_ navdata_time_t;
 
 
+
+/*----------------------------------------------------------------------------*/
+/**
+ * @brief Raw sensors measurements
+ */
 typedef struct _navdata_raw_measures_t {
   uint16_t  tag;
   uint16_t  size;
@@ -261,7 +326,7 @@ typedef struct _navdata_raw_measures_t {
   // +12 bytes
   uint16_t  raw_accs[NB_ACCS];    // filtered accelerometers
   uint16_t  raw_gyros[NB_GYROS];  // filtered gyrometers
-  uint16_t  raw_gyros_110[2];     // gyrometers  x/y 110°/s
+  uint16_t  raw_gyros_110[2];     // gyrometers  x/y 110 deg/s
   uint32_t  vbat_raw;             // battery voltage raw (mV)
   uint16_t  us_debut_echo;
   uint16_t  us_fin_echo;
@@ -270,6 +335,7 @@ typedef struct _navdata_raw_measures_t {
   uint16_t  us_courbe_temps;
   uint16_t  us_courbe_valeur;
   uint16_t  us_courbe_ref;
+  uint16_t  flag_echo_ini;
 }_ATTRIBUTE_PACKED_ navdata_raw_measures_t;
 
 
@@ -379,6 +445,14 @@ typedef struct _navdata_altitude_t {
   float32_t altitude_vz;
   int32_t   altitude_ref;
   int32_t   altitude_raw;
+
+	float32_t	obs_accZ;
+	float32_t obs_alt;
+	vector31_t obs_x;
+	uint32_t 	obs_state;
+	vector21_t	est_vb;
+	uint32_t 	est_state ;
+
 }_ATTRIBUTE_PACKED_ navdata_altitude_t;
 
 
@@ -415,8 +489,8 @@ typedef struct _navdata_vision_t {
   float32_t  delta_theta;
   float32_t  delta_psi;
 
-	uint32_t	gold_defined;
-	uint32_t	gold_reset;
+	uint32_t  gold_defined;
+	uint32_t  gold_reset;
 	float32_t gold_x;
 	float32_t gold_y;
 }_ATTRIBUTE_PACKED_ navdata_vision_t;
@@ -447,16 +521,18 @@ typedef struct _navdata_trackers_send_t {
 
 
 typedef struct _navdata_vision_detect_t {
+	/* !! Change the function 'navdata_server_reset_vision_detect()' if this structure is modified !! */
   uint16_t   tag;
   uint16_t   size;
 
   uint32_t   nb_detected;
-  uint32_t   type[4];
-  uint32_t   xc[4];
-  uint32_t   yc[4];
-  uint32_t   width[4];
-  uint32_t   height[4];
-  uint32_t   dist[4];
+  uint32_t   type[NB_NAVDATA_DETECTION_RESULTS];
+  uint32_t   xc[NB_NAVDATA_DETECTION_RESULTS];
+  uint32_t   yc[NB_NAVDATA_DETECTION_RESULTS];
+  uint32_t   width[NB_NAVDATA_DETECTION_RESULTS];
+  uint32_t   height[NB_NAVDATA_DETECTION_RESULTS];
+  uint32_t   dist[NB_NAVDATA_DETECTION_RESULTS];
+  float32_t  orientation_angle[NB_NAVDATA_DETECTION_RESULTS];
 }_ATTRIBUTE_PACKED_ navdata_vision_detect_t;
 
 typedef struct _navdata_vision_of_t {
@@ -487,15 +563,23 @@ typedef struct _navdata_adc_data_frame_t {
 typedef struct _navdata_video_stream_t {
   uint16_t  tag;
   uint16_t  size;
-  
-  uint8_t       quant;                  // quantizer reference used to encode frame [1:31]
-  uint32_t      frame_size;             // frame size (bytes)
-  uint32_t      frame_number;   // frame index
-  uint32_t      atcmd_ref_seq;  // atmcd ref sequence number
-  uint32_t      atcmd_mean_ref_gap;     // mean time between two consecutive atcmd_ref (ms)
+
+  uint8_t 	quant;			// quantizer reference used to encode frame [1:31]
+  uint32_t	frame_size;		// frame size (bytes)
+  uint32_t	frame_number;	// frame index
+  uint32_t	atcmd_ref_seq;  // atmcd ref sequence number
+  uint32_t	atcmd_mean_ref_gap;	// mean time between two consecutive atcmd_ref (ms)
   float32_t atcmd_var_ref_gap;
-  uint32_t      atcmd_ref_quality; // estimator of atcmd link quality
+  uint32_t	atcmd_ref_quality; // estimator of atcmd link quality
 }_ATTRIBUTE_PACKED_ navdata_video_stream_t;
+
+
+typedef struct _navdata_games_t {
+  uint16_t  tag;
+  uint16_t  size;
+  uint32_t  double_tap_counter;
+  uint32_t  finish_line_counter;
+}_ATTRIBUTE_PACKED_ navdata_games_t;
 
 #if defined(_MSC_VER)
 	/* Go back to default packing policy */
@@ -503,3 +587,4 @@ typedef struct _navdata_video_stream_t {
 #endif
 
 #endif // _NAVDATA_COMMON_H_
+

@@ -5,6 +5,7 @@
 #include <VLIB/Platform/video_config.h>
 
 #include <VP_Os/vp_os_malloc.h>
+#include <VP_Os/vp_os_print.h>
 
 #ifdef _ELINUX
 #include "dma_malloc.h"
@@ -21,18 +22,22 @@ extern void uvlc_codec_free( video_controller_t* controller );
 extern void p263_codec_alloc( video_controller_t* controller );
 extern void p263_codec_free( video_controller_t* controller );
 
-C_RESULT video_codec_open( video_controller_t* controller, codec_type_t codec_type )
+extern void p264_codec_alloc( video_controller_t* controller );
+extern void p264_codec_free( video_controller_t* controller );
+
+static C_RESULT video_codec_open_private( video_controller_t* controller, codec_type_t codec_type, bool_t keep_stream );
+static C_RESULT video_codec_close_private( video_controller_t* controller, bool_t keep_stream );
+
+static C_RESULT video_codec_open_private( video_controller_t* controller, codec_type_t codec_type, bool_t keep_stream )
 {
   C_RESULT res;
-  // Data used to initilize macroblock's cache
+  // Data used to initialize macroblock's cache
   int32_t i;
   int16_t* cache;
   video_macroblock_t* mb;
 
   // Close any previously allocated codec for this controller
-  video_codec_close( controller );
-
-  video_utils_init( controller );
+  video_codec_close_private( controller, keep_stream);
 
   controller->mode            = 0;
   controller->use_me          = FALSE;
@@ -44,15 +49,12 @@ C_RESULT video_codec_open( video_controller_t* controller, codec_type_t codec_ty
   controller->picture_type    = 0;
   controller->width           = 0;
   controller->height          = 0;
+  controller->resolution_changed = FALSE;
   controller->num_blockline   = 0;
   controller->mb_blockline    = 0;
   controller->blockline       = 0;
   controller->picture_complete= 0;
-#ifdef USE_TABLE_QUANTIZATION
-  controller->quant           = TABLE_QUANTIZATION;
-#else
   controller->quant           = DEFAULT_QUANTIZATION;
-#endif
   controller->dquant          = 0;
   controller->Qp              = 0;
   controller->invQp           = 1;
@@ -68,18 +70,21 @@ C_RESULT video_codec_open( video_controller_t* controller, codec_type_t codec_ty
     // DCT_BUFFER_SIZE = MAX_NUM_MACRO_BLOCKS_PER_CALL * 6 * MCU_BLOCK_SIZE
     controller->blockline_cache = (int16_t*)vp_os_aligned_malloc( 2*DCT_BUFFER_SIZE*sizeof(int16_t), VLIB_ALLOC_ALIGN );
   }
-
-  controller->cache_mbs = vp_os_malloc( 2 * MAX_NUM_MACRO_BLOCKS_PER_CALL * sizeof(video_macroblock_t) );
-  mb = &controller->cache_mbs[0];
-  cache = controller->blockline_cache;
-  for(i = 2*MAX_NUM_MACRO_BLOCKS_PER_CALL; i > 0; i-- )
+  if (controller->cache_mbs == NULL)
   {
-    mb->data = cache;
-    cache   += MCU_BLOCK_SIZE*6;
-    mb ++;
+    controller->cache_mbs = vp_os_malloc( 2 * MAX_NUM_MACRO_BLOCKS_PER_CALL * sizeof(video_macroblock_t) );
+    mb = &controller->cache_mbs[0];
+    cache = controller->blockline_cache;
+    for(i = 2*MAX_NUM_MACRO_BLOCKS_PER_CALL; i > 0; i-- )
+    {
+      mb->data = cache;
+      cache   += MCU_BLOCK_SIZE*6;
+      mb ++;
+    }
   }
 
-  video_packetizer_init( controller );
+  if (keep_stream == FALSE)
+    video_packetizer_init( controller );
   video_quantizer_init( controller );
 
   switch( codec_type )
@@ -90,6 +95,10 @@ C_RESULT video_codec_open( video_controller_t* controller, codec_type_t codec_ty
 
     case P263_CODEC:
       p263_codec_alloc( controller );
+      break;
+
+    case P264_CODEC:
+      p264_codec_alloc( controller );
       break;
 
     default:
@@ -107,17 +116,34 @@ C_RESULT video_codec_open( video_controller_t* controller, codec_type_t codec_ty
     res = C_FAIL;
   }
 
+  video_utils_init( controller );
+
   return res;
 }
 
-C_RESULT video_codec_close( video_controller_t* controller )
+C_RESULT video_codec_open( video_controller_t* controller, codec_type_t codec_type )
+{
+  return video_codec_open_private(controller, codec_type, FALSE );
+}
+
+static C_RESULT video_codec_close_private( video_controller_t* controller, bool_t keep_stream )
 {
   video_utils_close( controller );
 
   if( controller->blockline_cache != NULL )
+  {
     vp_os_aligned_free( controller->blockline_cache );
+    controller->blockline_cache = NULL;
+  }
 
-  if( controller->in_stream.bytes != NULL )
+  if (controller->cache_mbs != NULL)
+  {
+    vp_os_free( controller->cache_mbs );
+    controller->cache_mbs = NULL;
+  }
+
+
+  if( keep_stream == FALSE && controller->in_stream.bytes != NULL )
     video_packetizer_close( controller );
 
   switch( controller->codec_type )
@@ -130,6 +156,10 @@ C_RESULT video_codec_close( video_controller_t* controller )
       p263_codec_free( controller );
       break;
 
+    case P264_CODEC:
+      p264_codec_free( controller );
+      break;
+
     default:
       break;
   }
@@ -138,6 +168,29 @@ C_RESULT video_codec_close( video_controller_t* controller )
   video_controller_cleanup( controller );
 
   return C_OK;
+}
+
+C_RESULT video_codec_close ( video_controller_t* controller)
+{
+  return video_codec_close_private(controller, FALSE);
+}
+
+C_RESULT video_codec_type_select(video_controller_t* controller, video_stream_t* stream)
+{
+   uint32_t codec_type = 0;
+   video_align8( stream );
+   video_peek_data( stream, &codec_type, 22 );
+   // extract codec tag
+   //codec_type = codec_type>>5;
+
+   if (codec_type != controller->codec_type)
+   {
+     PRINT("VLIB new codec %d\n",codec_type);
+     // video codec has changed, load a new codec
+     video_codec_open_private( controller, codec_type, TRUE );
+
+   }
+   return C_OK;
 }
 
 C_RESULT video_encode_picture( video_controller_t* controller, const vp_api_picture_t* picture, bool_t* got_image )
@@ -192,8 +245,16 @@ C_RESULT video_decode_picture( video_controller_t* controller, vp_api_picture_t*
 
   while( VP_SUCCEEDED(video_cache_stream( controller, ex_stream )) )
   {
+    video_codec_type_select(controller,ex_stream); // to be verified
     video_decode_blockline( controller, &blockline, got_image );
   }
 
   return C_OK;
+}
+
+
+C_RESULT video_decode_blockline( video_controller_t* controller, vp_api_picture_t* blockline, bool_t* got_image )
+{
+  video_codec_type_select(controller,&controller->in_stream);
+  return controller->video_codec->decode_blockline( controller, blockline, got_image );
 }

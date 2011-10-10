@@ -39,7 +39,7 @@
 // INCLUDES
 
 #include <VP_Os/vp_os_types.h>
-
+#include <VP_Os/vp_os_signal.h>
 
 ///////////////////////////////////////////////
 // GLOBALS
@@ -88,10 +88,11 @@ PIPELINE_MSG;
  */
 typedef struct _vp_api_fifo_
 {
-  int32_t   *pbase;             ///< Base address of the fifo
-  int32_t   *pget;              ///< Pointer to the next message to get
-  int32_t   *ppost;             ///< Where to post a new message in the fifo
+  char   *pbase;             ///< Base address of the fifo
+  char   *pget;              ///< Pointer to the next message to get
+  char   *ppost;             ///< Where to post a new message in the fifo
   int32_t    nb_waiting;        ///< Number of messages waiting to be handled
+  vp_os_mutex_t mutex;
 }
 vp_api_fifo_t;
 

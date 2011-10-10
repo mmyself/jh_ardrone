@@ -21,6 +21,15 @@
 
 #include <Maths/matrices.h>
 
+
+#undef ARDRONE_CONFIG_KEY_IMM
+#undef ARDRONE_CONFIG_KEY_REF
+#undef ARDRONE_CONFIG_KEY_STR
+#define ARDRONE_CONFIG_KEY_IMM(KEY, NAME, INI_TYPE, C_TYPE, C_TYPE_PTR, RW, DEFAULT, CALLBACK)
+#define ARDRONE_CONFIG_KEY_REF(KEY, NAME, INI_TYPE, C_TYPE, C_TYPE_PTR, RW, DEFAULT, CALLBACK)
+#define ARDRONE_CONFIG_KEY_STR(KEY, NAME, INI_TYPE, C_TYPE, C_TYPE_PTR, RW, DEFAULT, CALLBACK)
+#include <config_keys.h>
+
 /*---------------------------- Defines -------------------------------------*/
 #define ASCIILINESZ         (1024)
 #define INI_INVALID_KEY     ((char*)-1)
@@ -58,7 +67,7 @@ static char * strlwc(const char * s)
     int i ;
 
     if (s==NULL) return NULL ;
-    memset(l, 0, ASCIILINESZ+1);
+    memset(l, 0, sizeof(l));
     i=0 ;
     while (s[i] && i<ASCIILINESZ) {
         l[i] = (char)tolower((int)s[i]);
@@ -86,7 +95,7 @@ static char * strstrip(char * s)
 {
     static char l[ASCIILINESZ+1];
 	char * last ;
-	
+
     if (s==NULL) return NULL ;
 
 	while (isspace((int)*s) && *s) s++;
@@ -201,8 +210,8 @@ void iniparser_ptr2val(dictionary_value* value)
   {
     if(value->val)
     {
-      value->val = NULL;
       free(value->val);
+      value->val = NULL;
     }
 
     switch( value->type )
@@ -321,6 +330,65 @@ void iniparser_val2ptr(dictionary_value* value)
     }
 }
 
+
+
+/*-------------------------------------------------------------------------*/
+/**
+  @brief    Transfer values from the dictionary to the bound variables
+  @param    d   Dictionary to dump.
+  @param    scope Scope for which values must be transfered (set to -1 to tranfer all values)
+  @return   void
+ */
+/*--------------------------------------------------------------------------*/
+void iniparser_vals2ptrs(dictionary * d , int scope)
+{
+    int     i ;
+
+    if (d==NULL) return ;
+    for (i=0 ; i<d->size ; i++) {
+
+    	if (d->key[i]==NULL)
+            continue ;
+
+        if( d->values[i].ptr != NULL ) {
+        	if (scope==-1 || d->values[i].scope==scope) {
+        		iniparser_val2ptr(&d->values[i]);
+        	}
+        }
+    }
+
+    return ;
+}
+
+
+/*-------------------------------------------------------------------------*/
+/**
+  @brief    Transfer values from the bound variables to the dictionary.
+  @param    d Dictionary to fill.
+  @param    scope Scope for which values must be transfered (set to -1 to tranfer all values)
+  @return   void
+ */
+/*--------------------------------------------------------------------------*/
+void iniparser_ptrs2vals(dictionary * d , int scope)
+{
+    int     i ;
+
+    if (d==NULL) return ;
+    for (i=0 ; i<d->size ; i++) {
+
+    	if (d->key[i]==NULL)
+            continue ;
+
+        if( d->values[i].ptr != NULL ) {
+        	if (scope==-1 || d->values[i].scope==scope) {
+        		iniparser_ptr2val(&d->values[i]);
+        	}
+        }
+    }
+
+    return ;
+}
+
 /*-------------------------------------------------------------------------*/
 /**
   @brief    Dump a dictionary to an opened file pointer.
@@ -334,11 +402,11 @@ void iniparser_val2ptr(dictionary_value* value)
   purposes mostly.
  */
 /*--------------------------------------------------------------------------*/
-void iniparser_dump(dictionary * d, FILE * f)
+void iniparser_dump(dictionary * d)
 {
     int     i ;
 
-    if (d==NULL || f==NULL) return ;
+    if (d==NULL) return ;
     for (i=0 ; i<d->size ; i++) {
         if (d->key[i]==NULL)
             continue ;
@@ -410,6 +478,7 @@ void iniparser_dump(dictionary * d, FILE * f)
   @brief    Save a dictionary to a loadable ini file
   @param    d   Dictionary to dump
   @param    f   Opened file pointer to dump to
+  @param    flag_dump_k_shallows  If true, K_SHALLOW values are written on disk
   @return   void
 
   This function dumps a given dictionary into a loadable ini file.
@@ -417,6 +486,11 @@ void iniparser_dump(dictionary * d, FILE * f)
  */
 /*--------------------------------------------------------------------------*/
 void iniparser_dump_ini(dictionary * d, FILE * f)
+{ iniparser_dump_ini_a4(d,f,0,1);    }
+void iniparser_dump_ini_a3(dictionary * d, FILE * f , int flag_dump_k_shallows)
+{ iniparser_dump_ini_a4(d,f,flag_dump_k_shallows,1); }
+
+void iniparser_dump_ini_a4(dictionary * d, FILE * f , int flag_dump_k_shallows , int update_values_from_memory)
 {
     int     i, j ;
     char    keym[ASCIILINESZ+1];
@@ -432,7 +506,12 @@ void iniparser_dump_ini(dictionary * d, FILE * f)
         for (i=0 ; i<d->size ; i++) {
             if (d->key[i]==NULL)
                 continue ;
-            iniparser_ptr2val(&d->values[i]); // Make sure we are synchro before dump
+            /* Stephane - add K_SHALLOW support */
+            	if (!flag_dump_k_shallows)
+            		if ((d->values[i].rw&K_SHALLOW)!=0)
+            			continue;
+            if(update_values_from_memory)
+            	iniparser_ptr2val(&d->values[i]); // Make sure we are synchro before dump
             fprintf(f, "%s = %s\n", d->key[i], d->values[i].val);
         }
         return ;
@@ -445,8 +524,13 @@ void iniparser_dump_ini(dictionary * d, FILE * f)
         for (j=0 ; j<d->size ; j++) {
             if (d->key[j]==NULL)
                 continue ;
+            /* Stephane - add K_SHALLOW support */
+            	if (!flag_dump_k_shallows)
+            		if ((d->values[j].rw&K_SHALLOW)!=0)
+            			continue;
             if (!strncmp(d->key[j], strlwc(keym), seclen+1)) {
-                iniparser_ptr2val(&d->values[j]); // Make sure we are synchro before dump
+            	if(update_values_from_memory)
+            		iniparser_ptr2val(&d->values[j]); // Make sure we are synchro before dump
                 fprintf(f,
                         "%-30s = %s\n",
                         d->key[j]+seclen+1,
@@ -469,7 +553,11 @@ static dictionary_value* iniparser_getdictionaryvalue(dictionary * d, const char
   return dictionary_get(d, lc_key);
 }
 
+int iniparser_alias_ex(dictionary * d, const char* kkey, int type, void* ptr, void (*cb)(void), char rw,int scope);
 int iniparser_alias(dictionary * d, const char* kkey, int type, void* ptr, void (*cb)(void), char rw)
+{	return iniparser_alias_ex(d,kkey,type,ptr,cb,rw,CAT_COMMON);  }
+
+int iniparser_alias_ex(dictionary * d, const char* kkey, int type, void* ptr, void (*cb)(void), char rw,int scope)
 {
   dictionary_value* value;
   char *pos;
@@ -503,6 +591,7 @@ int iniparser_alias(dictionary * d, const char* kkey, int type, void* ptr, void 
       value = dictionary_set(d, strlwc(key), NULL, type, ptr, cb);
       value->callback = cb;
       value->rw = rw;
+      value->scope = scope;
       iniparser_ptr2val(value);
 
       if( cb )
@@ -522,6 +611,7 @@ int iniparser_alias(dictionary * d, const char* kkey, int type, void* ptr, void 
       value->ptr  = ptr;
       value->callback = cb;
       value->rw = rw;
+      value->scope = scope;
 
 			if(rw & 1<<2)
 			{
@@ -752,7 +842,11 @@ int iniparser_find_entry( dictionary  *   ini, char* entry )
   It is Ok to set val to NULL.
  */
 /*--------------------------------------------------------------------------*/
-int iniparser_setstring(dictionary * ini, char * entry, char * val)
+
+int iniparser_setstring(dictionary * ini, const char * entry, const char * val)
+{ return iniparser_setstring_a4(ini,entry,val,1); }
+
+int iniparser_setstring_a4(dictionary * ini,const char * entry, const char * val , int trigger_callback)
 {
   dictionary_value* value = dictionary_set(ini, strlwc(entry), val, INI_UNKNOW, NULL,NULL);
 
@@ -761,7 +855,7 @@ int iniparser_setstring(dictionary * ini, char * entry, char * val)
 
   iniparser_val2ptr(value);
 
-  if( value->callback )
+  if( (trigger_callback) && (value->callback) )
     value->callback();
 
   return 0;
